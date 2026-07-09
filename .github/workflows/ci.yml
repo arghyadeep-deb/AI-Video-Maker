@@ -1,0 +1,74 @@
+name: CI
+
+# specs/04-tasks/task-20-deployment.md: "ARM compatibility proven in CI
+# (GitHub Actions free ARM runner) before first deploy" - the backend job
+# below runs on a real aarch64 runner (ubuntu-24.04-arm, GitHub-hosted,
+# free for public repos as of specs/02-research/08-free-hosting.md's
+# July-2026 research) specifically to catch any wheel that doesn't have an
+# aarch64 build before it ever reaches the Oracle ARM VM.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-arm:
+    name: Backend tests (aarch64, matches the Oracle VM)
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install system dependencies (ffmpeg, fonts - same as deploy/setup_vm.sh)
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg fonts-noto-core fonts-noto-devanagari
+
+      - name: Install Python dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run backend tests
+        working-directory: backend
+        env:
+          # Model-weight-dependent tests (real Wav2Lip/OpenVoice inference)
+          # are already individually skipped when their checkpoint files
+          # aren't present (see each test's own skip guard) - CI doesn't
+          # download the ~500MB of real weights on every run, only the
+          # Oracle VM does (deploy/setup_vm.sh calls setup_models.py there).
+          DB_PATH: /tmp/ci-test.db
+        run: python -m pytest -q
+
+  frontend:
+    name: Frontend typecheck, lint, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build

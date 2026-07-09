@@ -1,22 +1,27 @@
 # Open Decisions
 
-Everything below is **not locked**. Each has a working default so tasks are unblocked, but the default should be revisited with the owner at the marked checkpoint.
+Everything that had a working default has been confirmed by what actually shipped (tasks 01-19) and promoted into the relevant locked requirement files:
 
-| # | Question | Working default | Revisit at |
-|---|----------|-----------------|-----------|
-| 1 | Avatar backdrop: still portrait background only, or composite the talking head onto a persona-matched background? | Portrait's own background (nano banana renders persona setting into the portrait) | task-10 demo |
-| 2 | Should Mode A show a 3-second animated preview before committing to the full render? | No (costs a full pipeline warm-up + GPU); approval gate is on the still portrait | task-11 demo |
-| 3 | Default subtitle style: phrase-at-a-time or word-karaoke? (Both ship; this is only the default) | Phrase-at-a-time | task-16 demo |
-| 4 | GPU slot pricing: how many daily SadTalker/VoxCPM slots per user vs site-wide? | 1 per user/day, site-wide cap from measured ZeroGPU budget | task-15 |
-| 5 | Script length cap for 5-min preset (animation time grows linearly) | Cap Mode A at 2 min; 5 min is Mode B only | task-12 demo |
-| 7 | Watermark/credit line on output videos ("Made with …")? | Off; metadata tag only — flip on if abuse observed | task-19 |
-| 8 | Pexels/Pixabay attribution: file metadata only, or visible end-card? | Metadata + credits.txt in download bundle | task-08 |
-| 9 | Selfie/voice-sample retention: delete originals after portrait/profile approval? | Keep (needed for restyle/re-clone) with a prominent delete button + stated in privacy page | task-19 |
-| 10 | Product name: needs a real name before the public URL exists | Working name "AI Video Maker" | task-20 |
-| 11 | Per-user daily credit numbers (videos/scripts/stylings) | 3 / 10 / 2 | task-15, re-tune after launch data |
-| 12 | Email verification: signed magic-link (no mail dependency) vs free transactional email tier | Magic-link | task-14 |
-| 13 | Rendered-video retention on the 200 GB disk | Auto-prune MP4s after 14 days (projects/scripts kept, re-render free-of-charge if pruned) | task-20 |
+| # | Question | Resolution | Where it's now locked |
+|---|----------|-----------|------------------------|
+| 1 | Avatar backdrop | Portrait's own generated background (confirmed) | [`04-mode-a-avatar.md`](./04-mode-a-avatar.md) |
+| 2 | 3-second animated Mode A preview? | No (confirmed) | [`04-mode-a-avatar.md`](./04-mode-a-avatar.md) |
+| 3 | Default subtitle style | Phrase-at-a-time; karaoke ships as a toggle (confirmed) | [`05-mode-b-image-video.md`](./05-mode-b-image-video.md) |
+| 4 | GPU slot pricing | Superseded — no per-user slot count; GPU-minutes spent per video, ZeroGPU is worker-offline overflow only | [`10-hosting-accounts-quotas.md`](./10-hosting-accounts-quotas.md) |
+| 5 | Mode A script length cap | 2 minutes, enforced in UI + API (confirmed) | [`04-mode-a-avatar.md`](./04-mode-a-avatar.md) |
+| 7 | Visible watermark on output? | Off; metadata tag only (`comment=AI-generated`) (confirmed) | `04-tasks/task-19-moderation-consent.md` |
+| 8 | Pexels/Pixabay attribution | Metadata + `credits.txt` in the download bundle (confirmed) | [`05-mode-b-image-video.md`](./05-mode-b-image-video.md) |
+| 9 | Selfie/voice retention | Keep with a working delete button, stated in the privacy page | `frontend/app/privacy/page.tsx` (task-21) |
+| 11 | Per-user daily credit numbers | Superseded — per-user credits dropped entirely; global provider caps instead (~700 LLM calls, ~200 images/day site-wide) | [`10-hosting-accounts-quotas.md`](./10-hosting-accounts-quotas.md) |
+| 12 | Magic-link vs password auth | Password (argon2) + JWT cookies — no email dependency needed since the owner creates both accounts directly | [`10-hosting-accounts-quotas.md`](./10-hosting-accounts-quotas.md) |
+| 13 | Rendered-video retention | Auto-prune MP4s after 14 days (confirmed) | `deploy/retention_cron.sh` (task-20) |
+
+## Still genuinely open — needs the owner, not a default
+
+| # | Question | Why it can't be resolved autonomously |
+|---|----------|-----------------------------------------|
+| 10 | Product name | "AI Video Maker" is a working placeholder. A real public name (and matching domain/subdomain choice for task-20's deployment) is a branding decision, not an engineering one. |
 
 ## Resolution protocol
 
-When a default is confirmed or overturned, move the decision into the appropriate locked requirement file and delete the row here. This file must be empty at task-21 launch.
+When #10 is decided, move it into the appropriate locked requirement file and delete its row above — this file should then be empty except for this protocol note.

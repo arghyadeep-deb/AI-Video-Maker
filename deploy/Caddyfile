@@ -1,0 +1,34 @@
+# AI Video Maker — reverse proxy + HTTPS (Let's Encrypt, automatic).
+# specs/04-tasks/task-20-deployment.md, specs/02-research/08-free-hosting.md's
+# "Caddy + a free subdomain (DuckDNS or a cheap-to-free domain)".
+#
+# Replace {$AIVIDEOMAKER_DOMAIN} with the real domain/subdomain once
+# decided (open decision #10 - product name/domain is the owner's call,
+# not something this file can default) - Caddy reads it from the
+# environment so this file itself never needs editing per-deploy.
+
+{$AIVIDEOMAKER_DOMAIN} {
+	# The FastAPI app already enforces its own CORS (app/main.py,
+	# frontend_origin setting) - Caddy just proxies, no extra CORS logic here.
+	reverse_proxy 127.0.0.1:8000
+
+	encode gzip
+
+	# Selfie/voice-sample uploads are small (a few MB); this is a generous
+	# ceiling, not a tuned limit - stock-image/AI-generated media never
+	# comes through this endpoint as an upload.
+	request_body {
+		max_size 25MB
+	}
+
+	log {
+		output file /var/log/caddy/aivideomaker-access.log
+		format json
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+}

@@ -19,7 +19,7 @@
 
 ## Accounts (locked — private site, 1–2 users)
 
-- **Invite-only**: no open registration. Accounts are created by the owner (config/CLI or an invite code); email + password (argon2) + JWT cookies via `fastapi-users`. No email verification needed — the owner knows both users.
+- **Invite-only**: no open registration. Accounts are created by the owner (`backend/scripts/create_user.py`, CLI-only — no public register endpoint); email + password (argon2-cffi) + JWT cookies, hand-rolled rather than via `fastapi-users` (task-14: that library's storage layer needs an async ORM adapter this raw-sqlite3 codebase doesn't have — see task-14-auth-accounts.md's own Completion notes). No email verification needed — the owner knows both users, so magic-link auth (open decision #12) was dropped in favor of plain password login.
 - All data rows still carry `user_id` and queries are user-scoped (cheap discipline, keeps deletion clean), but there is no anonymous-public attack surface: no signup throttles, no disposable-email filters, no report/takedown queue.
 
 ## Quotas (simplified — the budget is generous for two people)

@@ -1,0 +1,28 @@
+#cloud-config
+# Paste this into Oracle Cloud's "Add cloud-init script" field when creating
+# the Always Free ARM instance (Ubuntu 24.04 aarch64 image recommended -
+# matches what backend/requirements.txt's wheels are verified against in
+# CI - see .github/workflows/ci-arm.yml). Runs once, on first boot.
+#
+# This only gets the box to "has git and a copy of the repo" - the actual
+# provisioning (Python env, ffmpeg, Caddy, systemd units, model weights) is
+# deploy/setup_vm.sh, invoked at the end here. Set repo_url below before
+# using this file (open decision #10 - the real repo location is the
+# owner's to set up).
+
+package_update: true
+package_upgrade: false
+
+packages:
+  - git
+
+runcmd:
+  - export AIVIDEOMAKER_REPO_URL="https://github.com/REPLACE-ME/ai-video-maker.git"
+  - git clone "$AIVIDEOMAKER_REPO_URL" /tmp/aivideomaker-bootstrap
+  - bash /tmp/aivideomaker-bootstrap/deploy/setup_vm.sh || true
+  - rm -rf /tmp/aivideomaker-bootstrap
+  # setup_vm.sh exits non-zero (by design) the first time, before deploy/.env
+  # has real secrets in it - that's expected on a truly fresh box. SSH in,
+  # fill in /opt/aivideomaker/deploy/.env per docs/RUNBOOK.md, then re-run
+  # `sudo bash /opt/aivideomaker/deploy/setup_vm.sh` by hand to actually
+  # start the service.

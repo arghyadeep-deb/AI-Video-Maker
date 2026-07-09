@@ -1,0 +1,10 @@
+[Unit]
+Description=Run AI Video Maker backup once a night
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+RandomizedDelaySec=900
+
+[Install]
+WantedBy=timers.target

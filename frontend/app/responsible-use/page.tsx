@@ -34,6 +34,10 @@ export default function ResponsibleUsePage() {
       </p>
 
       <p style={{ marginTop: "2rem" }}>
+        <Link href="/privacy" style={{ color: "var(--accent)" }}>Privacy & data</Link>
+        {" · "}
+        <Link href="/licenses" style={{ color: "var(--accent)" }}>Licenses</Link>
+        {" · "}
         <Link href="/" style={{ color: "var(--accent)" }}>Back to your library</Link>
       </p>
     </main>

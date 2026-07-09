@@ -1,0 +1,10 @@
+[Unit]
+Description=Run AI Video Maker retention pruning once a day
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=1800
+
+[Install]
+WantedBy=timers.target

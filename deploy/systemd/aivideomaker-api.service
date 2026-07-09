@@ -1,0 +1,24 @@
+[Unit]
+Description=AI Video Maker — FastAPI + in-process job worker
+After=network.target
+
+[Service]
+Type=simple
+User=aivideomaker
+Group=aivideomaker
+WorkingDirectory=/opt/aivideomaker/backend
+EnvironmentFile=/opt/aivideomaker/deploy/.env
+ExecStart=/opt/aivideomaker/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+# The worker loop lives inside this same process (app/main.py's lifespan) -
+# there is no separate worker service to manage or restart independently.
+
+# Basic hardening - this process only needs its own media/db paths and outbound HTTPS.
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/aivideomaker/data
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -23,6 +23,8 @@ Accepted script — narrated in **the user's enrolled voice by default** ([`11-p
 
 Rules: landscape/portrait orientation must match the chosen video format; minimum resolution 1080 px on the short edge; no duplicate image across scenes in one video.
 
+**Attribution (resolved, was open decision #8)**: file metadata only, no visible end-card — photographer/source recorded in each scene's `media_assets.meta_json` and written into `credits.txt`, bundled in every download alongside the video (task-08/task-09).
+
 ## Presentation (locked)
 
 - **Photo level**: Ken Burns (slow zoom/pan) on every image — a static slideshow reads as cheap; motion reads as produced.
@@ -35,6 +37,7 @@ Rules: landscape/portrait orientation must match the chosen video format; minimu
 - Generated from the script text (source of truth) timed with **word-boundary events from edge-tts** — no speech recognition needed, perfectly accurate by construction.
 - Same language as audio; rendered with Noto Sans (Devanagari/Latin — free fonts, full script support).
 - Burned into the video (universal playback); styled as reels-standard bottom-center, 2 lines max, current phrase highlighted.
+- **Default style (resolved, was open decision #3)**: phrase-at-a-time. Word-by-word karaoke also ships as a user-facing toggle (task-16); phrase stays the default in both modes.
 
 ## Output
 

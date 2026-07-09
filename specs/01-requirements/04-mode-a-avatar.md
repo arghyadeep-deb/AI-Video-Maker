@@ -22,6 +22,9 @@ The styled portrait is shown to the user **before** any animation starts. User c
 
 - The portrait must keep the user's facial identity (it should look like *them* as an astrologer, not a generic astrologer).
 - Output: single front-facing, neutral-to-mild-expression portrait, 1024×1024 — the framing SadTalker animates best.
+- **Backdrop (resolved, was open decision #1)**: the portrait's own generated background (the styling prompt renders a persona-matched setting directly into the portrait) — no separate composite-onto-background step.
+- **No animated preview before commit (resolved, was open decision #2)**: the approval gate above is on the still portrait only; a 3-second animated preview would cost a full pipeline warm-up (and a GPU slot, on the HD path) before the user has even approved the likeness.
+- **Script length cap (resolved, was open decision #5)**: Mode A is capped at 2 minutes (`MODE_A_MAX_DURATION_S = 120`, enforced both in the UI and at the API); longer scripts are steered to Mode B, which has no such cap.
 
 ## Consent rule (locked)
 

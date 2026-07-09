@@ -4,6 +4,7 @@
 // account)". Also the only logout affordance in the app.
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import DeleteConfirm from "@/components/DeleteConfirm";
 import { ApiRequestError, deleteAccount, getMe, logout, type User } from "@/lib/api";
 
@@ -74,6 +75,35 @@ export default function AccountMenu() {
             zIndex: 10,
           }}
         >
+          <Link
+            href="/privacy"
+            style={{
+              display: "block",
+              width: "100%",
+              textAlign: "left",
+              padding: "0.5rem 0.75rem",
+              color: "var(--text-dim)",
+              fontSize: "0.85rem",
+              borderRadius: 6,
+            }}
+          >
+            Privacy & data
+          </Link>
+          <Link
+            href="/licenses"
+            style={{
+              display: "block",
+              width: "100%",
+              textAlign: "left",
+              padding: "0.5rem 0.75rem",
+              color: "var(--text-dim)",
+              fontSize: "0.85rem",
+              borderRadius: 6,
+            }}
+          >
+            Licenses
+          </Link>
+          <div style={{ borderTop: "1px solid var(--border)", margin: "0.4rem 0" }} />
           <button
             type="button"
             onClick={handleLogout}

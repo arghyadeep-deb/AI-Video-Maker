@@ -1,0 +1,11 @@
+[Unit]
+Description=AI Video Maker — prune rendered MP4s older than the retention window
+After=network.target
+
+[Service]
+Type=oneshot
+User=aivideomaker
+Group=aivideomaker
+WorkingDirectory=/opt/aivideomaker
+EnvironmentFile=/opt/aivideomaker/deploy/.env
+ExecStart=/opt/aivideomaker/deploy/retention_cron.sh

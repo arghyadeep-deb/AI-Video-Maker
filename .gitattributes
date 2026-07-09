@@ -1,0 +1,9 @@
+# Deployment artifacts run on Linux (the Oracle ARM VM) - force LF endings
+# regardless of the checking-out machine's OS/git config, or a CRLF shell
+# script fails on the VM with a cryptic "bad interpreter: /bin/bash^M" error.
+*.sh text eol=lf
+*.service text eol=lf
+*.timer text eol=lf
+Caddyfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf

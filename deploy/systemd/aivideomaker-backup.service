@@ -1,0 +1,11 @@
+[Unit]
+Description=AI Video Maker — nightly SQLite + consent-record snapshot to off-VM storage
+After=network.target
+
+[Service]
+Type=oneshot
+User=aivideomaker
+Group=aivideomaker
+WorkingDirectory=/opt/aivideomaker
+EnvironmentFile=/opt/aivideomaker/deploy/.env
+ExecStart=/opt/aivideomaker/deploy/backup.sh
