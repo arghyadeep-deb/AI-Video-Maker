@@ -1,0 +1,12 @@
+stateDiagram-v2
+    [*] --> queued : POST creates job
+    queued --> running : worker picks up (one at a time)
+    running --> running : stage advances (progress %)
+    running --> awaiting_user : approval gate / Colab import
+    awaiting_user --> running : user approves / uploads render
+    running --> done : all stages complete
+    running --> failed : exception (stderr tail captured)
+    queued --> cancelled : user cancel
+    running --> cancelled : user cancel (between stages)
+    failed --> queued : user retry
+    done --> [*]

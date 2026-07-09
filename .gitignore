@@ -1,0 +1,41 @@
+# Secrets
+.env
+.env.local
+
+# Media (gitignored data root — specs/03-design/08-data-model.md)
+media/
+
+# Backend (Python)
+backend/.venv/
+backend/**/__pycache__/
+backend/.pytest_cache/
+*.pyc
+
+# Large model weights (fetched by backend/scripts/setup_models.py, not committed)
+backend/vendor/wav2lip/checkpoints/*.pth
+backend/vendor/wav2lip/face_detection/detection/sfd/*.pth
+backend/vendor/wav2lip/temp/*.avi
+backend/vendor/wav2lip/results/
+backend/vendor/openvoice/checkpoints_v2/converter/*.pth
+
+# Voice-clone / enrollment artifacts (user likeness data - never committed)
+backend/vendor/openvoice/checkpoints_v2/base_speakers/
+
+# Frontend (Next.js)
+frontend/node_modules/
+frontend/.next/
+frontend/next-env.d.ts
+
+# Deployment secrets (task-20) - real values live only on the VM/in CI secrets
+deploy/.env
+deploy/*.pem
+deploy/*.key
+
+# Local Claude Code session state (machine-local, not project data)
+.claude/
+.gstack/
+**/.gstack/
+
+# OS
+.DS_Store
+Thumbs.db

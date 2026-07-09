@@ -1,0 +1,27 @@
+sequenceDiagram
+    participant U as User
+    participant FE as Frontend
+    participant API as FastAPI
+    participant W as Job Worker
+    participant NB as nano banana
+    participant TTS as edge-tts
+    participant TH as SadTalker/Wav2Lip
+    participant FF as FFmpeg
+
+    U->>FE: selfie + persona description
+    FE->>API: POST /api/avatars
+    API->>W: avatar_styling job
+    W->>NB: style(selfie, persona, identity-pinned)
+    NB-->>W: portrait.png
+    W-->>FE: awaiting_approval
+    U->>FE: Approve (or Regenerate)
+    U->>FE: voice + Generate
+    FE->>API: POST /video {mode:a, voice, avatar_id}
+    API->>W: render_mode_a job
+    W->>TTS: speak(script, voice)
+    TTS-->>W: mp3 + word timings
+    W->>TH: render(portrait, wav)
+    TH-->>W: talking-head mp4
+    W->>FF: pad/scale + burn subtitles + loudnorm
+    FF-->>W: output.mp4
+    W-->>FE: done → player + download

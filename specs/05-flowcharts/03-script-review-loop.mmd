@@ -1,0 +1,13 @@
+stateDiagram-v2
+    [*] --> drafting
+    drafting --> script_ready : generate (LLM, validated JSON)
+    script_ready --> script_ready : improve selection → keep (new version)
+    script_ready --> script_ready : improve selection → revert (no change)
+    script_ready --> script_ready : manual edit (new version)
+    script_ready --> script_ready : restore older version
+    script_ready --> drafting : scrap (confirm)
+    script_ready --> accepted : accept (version frozen)
+    accepted --> generating : generate video (mode chosen)
+    generating --> done : job success
+    generating --> accepted : job failed → retry
+    done --> [*]

@@ -1,0 +1,65 @@
+[
+  {
+    "filename": "calm-blue-lake.mp3",
+    "title": "Calm Blue Lake",
+    "mood": "calm",
+    "duration_s": 230.06,
+    "artist": "Jason Shaw (Audionautix)"
+  },
+  {
+    "filename": "serenity.mp3",
+    "title": "Serenity",
+    "mood": "calm",
+    "duration_s": 110.21,
+    "artist": "Jason Shaw (Audionautix)"
+  },
+  {
+    "filename": "namaste.mp3",
+    "title": "Namaste",
+    "mood": "calm",
+    "duration_s": 327.89,
+    "artist": "Jason Shaw (Audionautix)"
+  },
+  {
+    "filename": "funky-junky.mp3",
+    "title": "Funky Junky",
+    "mood": "upbeat",
+    "duration_s": 138.45,
+    "artist": "Jason Shaw (Audionautix)"
+  },
+  {
+    "filename": "kicked-up-pumps.mp3",
+    "title": "Kicked Up Pumps",
+    "mood": "upbeat",
+    "duration_s": 131.32,
+    "artist": "Jason Shaw (Audionautix)"
+  },
+  {
+    "filename": "dark-mystery.mp3",
+    "title": "Dark Mystery",
+    "mood": "mystical",
+    "duration_s": 130.98,
+    "artist": "Jason Shaw (Audionautix)"
+  },
+  {
+    "filename": "ocean-floor.mp3",
+    "title": "Ocean Floor",
+    "mood": "mystical",
+    "duration_s": 227.79,
+    "artist": "Jason Shaw (Audionautix)"
+  },
+  {
+    "filename": "corporation-motivation.mp3",
+    "title": "Corporation Motivation",
+    "mood": "corporate",
+    "duration_s": 106.74,
+    "artist": "Jason Shaw (Audionautix)"
+  },
+  {
+    "filename": "algorithm.mp3",
+    "title": "Algorithm",
+    "mood": "corporate",
+    "duration_s": 226.06,
+    "artist": "Jason Shaw (Audionautix)"
+  }
+]

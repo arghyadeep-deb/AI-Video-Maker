@@ -1,0 +1,25 @@
+sequenceDiagram
+    participant FE as Frontend
+    participant API as FastAPI
+    participant W as Job Worker
+    participant TTS as edge-tts
+    participant PX as Pexels/Pixabay
+    participant NB as nano banana (fallback)
+    participant FF as FFmpeg
+
+    FE->>API: POST /video {mode:b, voice}
+    API->>W: render_mode_b job
+    loop each scene
+        W->>TTS: speak(scene.text, voice)
+        TTS-->>W: scene mp3 + word timings
+    end
+    loop each scene
+        W->>PX: search(visual_hint, orientation)
+        alt no usable image
+            W->>NB: generate(visual_hint)
+        end
+    end
+    W->>W: word timings → phrase-grouped ASS + SRT
+    W->>FF: Ken Burns clips → xfade concat → audio → burn ASS
+    FF-->>W: output.mp4 + credits.txt
+    W-->>FE: done → player + download

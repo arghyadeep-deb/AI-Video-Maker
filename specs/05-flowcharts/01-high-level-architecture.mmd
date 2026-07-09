@@ -1,0 +1,38 @@
+flowchart TB
+    subgraph Vercel["Vercel (free) — Next.js Frontend"]
+        Auth["Register / Login"]
+        Create["Create page"]
+        Editor["Script Editor"]
+        ModeUI["Mode Select + Avatar/Voice setup"]
+        Progress["Queue + Progress"]
+        Library["Library + Player + Post-render tools"]
+    end
+
+    subgraph VM["Oracle Always Free VM — Caddy HTTPS"]
+        AuthAPI["/api/auth/* (fastapi-users, JWT)"]
+        Quota["credit + quota middleware"]
+        Routes["/api routes"]
+        Worker["Async Job Worker (fair round-robin)"]
+        Engines["Engine Interfaces"]
+        DB[("SQLite")]
+        FS[("media/ per-user")]
+    end
+
+    subgraph External["Free external services (owner's key pool)"]
+        Gem["Gemini Flash + Flash Image"]
+        Edge["edge-tts"]
+        Stock["Pexels / Pixabay"]
+        Zero["HF ZeroGPU Space: SadTalker · VoxCPM · MuseTalk"]
+    end
+
+    Vercel -->|HTTPS JSON| AuthAPI
+    AuthAPI --> Quota --> Routes
+    Routes --> Worker
+    Worker --> Engines
+    Engines --> Gem
+    Engines --> Edge
+    Engines --> Stock
+    Engines --> Zero
+    Routes --> DB
+    Worker --> DB
+    Worker --> FS

@@ -1,0 +1,18 @@
+flowchart TD
+    R["Register / log in (email + password)"] --> A
+    A["Describe video + pick language (hi/en) + duration + format"] --> B["AI generates scene-segmented script (native language)"]
+    B --> C{"Review script"}
+    C -->|Accept| D{"Pick mode"}
+    C -->|Scrap| A
+    C -->|"Select part + improve"| C1["AI rewrites selection only → keep/revert diff"] --> C
+    C -->|Manual edit| C2["Inline edit scene text"] --> C
+    D -->|"Mode A — My Avatar"| E["Upload selfie + persona description"]
+    E --> F["Styled portrait (nano banana)"]
+    F --> G{"Approve portrait?"}
+    G -->|Regenerate| E
+    G -->|Approve| H["Voice: your own (record once at first video) — HD / persona / stock as alternatives"]
+    D -->|"Mode B — Image Video"| H
+    H --> I["Queued render job (fair queue, staged progress)"]
+    I --> J["Watch in browser + download MP4 (+SRT, credits)"]
+    J --> K["Post-render: swap image / re-render scene / re-render in other mode"]
+    K --> I

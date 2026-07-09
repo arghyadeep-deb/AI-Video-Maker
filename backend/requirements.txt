@@ -1,0 +1,43 @@
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.32,<1.0
+pydantic>=2.9,<3.0
+pydantic-settings>=2.6,<3.0
+python-multipart>=0.0.12
+google-genai>=1.0
+tzdata>=2024.2
+edge-tts>=7.0
+opencv-python-headless>=4.9
+gradio_client>=1.0
+torch>=2.9
+torchvision>=0.24
+librosa>=0.11
+numba>=0.66
+argon2-cffi>=23.1
+pyjwt>=2.9
+slowapi>=0.1.9
+soundfile>=0.13
+
+# task-18: vendor/openvoice's api.py eagerly imports openvoice.text (for
+# BaseSpeakerTTS, which this project doesn't use - only ToneColorConverter -
+# but the module-level import chain still needs these at import time).
+inflect>=7.5
+unidecode>=1.4
+eng_to_ipa>=0.0.2
+pypinyin>=0.55
+jieba>=0.42
+cn2an>=0.5
+# ToneColorConverter's __init__ has a real upstream bug: enable_watermark=False
+# still gets forwarded to the parent class's __init__, which rejects the
+# unexpected kwarg - so watermarking can't actually be disabled without
+# patching vendored code. Simpler to just install it (verified working) than
+# to carry a patch against someone else's repo.
+wavmark>=0.0.3
+# task-18: VoxCPM HD's word timings come from forced alignment (a
+# generative voice has no native word-boundary events edge-tts provides),
+# not ASR-of-unknown-text - the reference script text is already known.
+faster-whisper>=1.2
+
+# dev/test
+pytest>=8.3,<9.0
+httpx>=0.27,<1.0
+pytest-asyncio>=0.24,<1.0
