@@ -1,20 +1,28 @@
-# Engines venv — the owner's RTX 5070 Ti is Blackwell (sm_120), which needs
-# CUDA 12.8+ PyTorch builds (risk R12). Install torch FIRST from the cu128
-# index, then the rest:
+# In-process engine deps (scene_gen, voxcpm) — installed into the SAME
+# .venv as the agent, because those engines import torch/diffusers inside
+# the agent's own process. The owner's RTX 5070 Ti is Blackwell (sm_120),
+# which needs CUDA 12.8+ PyTorch builds (risk R12): install torch FIRST
+# from the cu128 index, then this file (setup_worker.ps1 does both):
 #
 #   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 #   pip install -r requirements-engines.txt
 #
-# scene_gen (Wan 2.2 5B / LTX-Video) + voxcpm:
+# scene_gen (Wan 2.2 5B / LTX-Video):
 diffusers>=0.32
 transformers>=4.46
 accelerate>=1.0
 imageio[ffmpeg]
 sentencepiece
 ftfy
-voxcpm
 soundfile
 
-# SadTalker / MuseTalk pin 2023-era deps and are installed from their own
-# repos into this same venv per THEIR requirements files - see setup.md
-# ("expect dependency surgery, document working pins" - risk R12).
+# voxcpm (optional HD-voice engine) is NOT listed here: its `editdistance`
+# dependency ships no Python-3.13 Windows wheel and needs MSVC build tools
+# to compile (found live at task-20a setup, 2026-07-10). To enable it:
+# install Visual Studio Build Tools (C++ workload), then
+#   pip install voxcpm
+# and add "voxcpm" to `engines` in config.toml.
+
+# SadTalker / MuseTalk pin 2023-era deps that CLASH with modern diffusers -
+# they get their own separate venv (config.toml `engines_python`) and run
+# as subprocesses; see setup.md ("expect dependency surgery" - risk R12).

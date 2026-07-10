@@ -1,6 +1,6 @@
 # Home GPU Worker (Owner's RTX 5070 Ti)
 
-The owner's PC (RTX 5070 Ti, 16 GB VRAM, Windows) runs a **worker agent** that turns it into the site's primary GPU whenever it's online. No port forwarding, no public exposure: the agent makes **outbound HTTPS long-poll requests** to the VM and pulls jobs.
+The owner's PC (RTX 5070 Ti **Laptop** GPU — **12 GB VRAM**, confirmed by a real `nvidia-smi` read at task-20a setup on 2026-07-10; planning docs earlier assumed the 16 GB desktop card) runs a **worker agent** that turns it into the site's primary GPU whenever it's online. No port forwarding, no public exposure: the agent makes **outbound HTTPS long-poll requests** to the VM and pulls jobs.
 
 ## Protocol
 
@@ -22,7 +22,7 @@ agent → VM: POST /api/worker/complete {job_id} + result upload (multipart)
 | `sadtalker` | SadTalker | ~4 GB | HD avatar — **default engine while worker online** |
 | `voxcpm` | VoxCPM | ~8 GB | HD voice cloning/design; **the Hindi cloning fallback (R11) at real capacity** |
 | `musetalk` | MuseTalk | ~6 GB | Lip-enhance pass |
-| `scene_gen` | **Wan 2.2 TI2V-5B or LTX-Video** (diffusers, no ComfyUI; task-20a picks by quality-per-minute on the 5070 Ti) | ~10–14 GB | **Generated-footage Mode B**: image→~5 s clip per scene — the "proper AI video" engine. Also serves single-scene re-renders |
+| `scene_gen` | **Wan 2.2 TI2V-5B or LTX-Video** (diffusers, no ComfyUI; task-20a picks by quality-per-minute on the 5070 Ti) | ~10–14 GB (needs CPU offload on the real 12 GB card) | **Generated-footage Mode B**: image→~5 s clip per scene — the "proper AI video" engine. Also serves single-scene re-renders |
 
 Agent probes GPU + models at startup and advertises only what loads; the VM routes accordingly.
 

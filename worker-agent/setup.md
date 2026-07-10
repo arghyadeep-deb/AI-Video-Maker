@@ -11,9 +11,13 @@ cd worker-agent
 powershell -ExecutionPolicy Bypass -File scripts\setup_worker.ps1
 ```
 
-The script creates two venvs (agent + engines), installs Blackwell-correct
+The script creates one venv (`.venv`) holding the agent **and** its
+in-process engines (scene_gen/voxcpm import torch/diffusers inside the
+agent's own process, so they must share it), installs Blackwell-correct
 PyTorch (CUDA 12.8 builds — sm_120 needs them, risk R12), copies
 `config.example.toml` → `config.toml`, and prints what to fill in.
+Only SadTalker/MuseTalk (2023-era pins that clash with modern diffusers)
+go in a separate venv you point `engines_python` at.
 
 ## Manual steps the script can't do
 
@@ -27,14 +31,19 @@ PyTorch (CUDA 12.8 builds — sm_120 needs them, risk R12), copies
      the box once the engines venv exists.
    - **sadtalker** (HD avatars): clone https://github.com/OpenTalker/SadTalker
      to e.g. `C:\tools\SadTalker`, run its `scripts\download_models.sh`
-     equivalents (checkpoints into `SadTalker\checkpoints`), install its
-     `requirements.txt` into the ENGINES venv, set `sadtalker_dir` +
-     `engines_python` in config.toml. Expect dependency surgery (2023-era
-     pins) — record working pin versions here when found:
+     equivalents (checkpoints into `SadTalker\checkpoints`), create a
+     SEPARATE venv for its 2023-era `requirements.txt` (they clash with
+     modern diffusers), set `sadtalker_dir` + `engines_python` (that
+     venv's python.exe) in config.toml. Expect dependency surgery
+     (2023-era pins) — record working pin versions here when found:
      - *(pins discovered during install go here)*
    - **musetalk** (lip enhance): same pattern, https://github.com/TMElyralab/MuseTalk,
      set `musetalk_dir`.
-   - **voxcpm** (HD voice): `pip install voxcpm` in the engines venv is all.
+   - **voxcpm** (HD voice): needs Visual Studio Build Tools (C++ workload)
+     first — its `editdistance` dep has no Python-3.13 Windows wheel and
+     compiles from source (found live, 2026-07-10). Then
+     `.venv\Scripts\pip install voxcpm` and add `"voxcpm"` to `engines`
+     in config.toml.
 4. **Bake-off (judgment gate #3, before launch)**: run
    `scripts/bakeoff.py` with 2-3 real scene images + prompts, watch the
    side-by-side results, record the verdict + timings in

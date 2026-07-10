@@ -11,6 +11,14 @@ backend/**/__pycache__/
 backend/.pytest_cache/
 *.pyc
 
+# Worker agent (task-20a) - venv, local config (contains the worker token),
+# and in-flight task scratch never leave the owner's PC
+worker-agent/.venv/
+worker-agent/config.toml
+worker-agent/**/__pycache__/
+worker-agent/.pytest_cache/
+worker-agent/bakeoff-results/
+
 # Large model weights (fetched by backend/scripts/setup_models.py, not committed)
 backend/vendor/wav2lip/checkpoints/*.pth
 backend/vendor/wav2lip/face_detection/detection/sfd/*.pth

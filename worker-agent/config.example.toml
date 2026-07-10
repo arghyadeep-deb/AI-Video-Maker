@@ -23,7 +23,10 @@ engines = ["sadtalker", "scene_gen"]
 # scripts/bakeoff.py and record the verdict (judgment gate #3) before launch.
 scene_gen_backend = "wan"
 
-# Engine tool locations (see setup.md).
+# SadTalker/MuseTalk subprocess locations (see setup.md). engines_python =
+# the python.exe of THEIR separate venv (2023-era pins clash with the
+# agent venv's modern diffusers). scene_gen/voxcpm need none of this -
+# they run inside the agent's own .venv.
 # sadtalker_dir = 'C:\\tools\\SadTalker'
 # musetalk_dir = 'C:\\tools\\MuseTalk'
-# engines_python = 'C:\\tools\\engines-venv\\Scripts\\python.exe'
+# engines_python = 'C:\\tools\\sadtalker-venv\\Scripts\\python.exe'
