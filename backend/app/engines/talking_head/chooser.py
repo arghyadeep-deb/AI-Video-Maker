@@ -1,19 +1,21 @@
-"""Engine selection + ZeroGPU-fallback orchestration for Mode A rendering —
+"""Engine selection + fallback orchestration for Mode A rendering —
 specs/03-design/04-mode-a-pipeline.md's engine-selection rules and
-specs/04-tasks/task-11-talking-head.md's Implementation notes ("on ZeroGPU
-quota error -> fall back to Wav2Lip and refund the slot"). The render_mode_a
-pipeline itself (task-12) calls this rather than picking an engine directly.
+specs/03-design/11-gpu-worker.md's three-tier routing (task-20a):
 
-Note: the three-tier "home GPU worker -> ZeroGPU -> CPU" routing described in
-specs/03-design/11-gpu-worker.md is task-20a's job (the worker agent doesn't
-exist yet). This task-11-scoped chooser only implements the two tiers that
-actually exist right now: SadTalker ZeroGPU (HD, optional, budget-gated) and
-Wav2Lip CPU (default, always available).
+    HD requested -> home worker (plentiful, while the owner's PC is online)
+                 -> ZeroGPU Space (rationed, budget-gated)
+                 -> Wav2Lip CPU  (always available)
+
+Every tier's failure is an honest degrade, not a job failure: the home
+worker vanishing mid-render (PC slept — a normal event) and ZeroGPU quota
+exhaustion both fall through silently to the next tier; the engine actually
+used is recorded in jobs.engine_notes by the pipeline.
 """
 from typing import Optional
 
 from app.engines.talking_head.base import TalkingHeadEngine, TalkingHeadResult
 from app.engines.talking_head.sadtalker_zerogpu import ZeroGpuQuotaExhaustedError
+from app.jobs.gpu_router import GpuTaskFailed, HomeWorkerUnavailable
 
 
 async def render_with_fallback(
@@ -23,7 +25,13 @@ async def render_with_fallback(
     portrait_path: str,
     wav_path: str,
     output_path: str,
+    home_engine: Optional[TalkingHeadEngine] = None,
 ) -> TalkingHeadResult:
+    if hd_requested and home_engine is not None:
+        try:
+            return await home_engine.render(portrait_path, wav_path, output_path)
+        except (HomeWorkerUnavailable, GpuTaskFailed):
+            pass  # PC offline/slept/crashed - ZeroGPU or Wav2Lip picks it up
     if hd_requested and sadtalker_engine is not None:
         try:
             return await sadtalker_engine.render(portrait_path, wav_path, output_path)

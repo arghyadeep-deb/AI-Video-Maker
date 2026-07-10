@@ -19,6 +19,12 @@ class SceneClip:
     index: int  # 0-based position in the render order
     image_path: str
     duration_s: float  # this scene's own audio duration
+    # Generated-footage level (task-20a): a real AI-generated motion clip
+    # for this scene. When set, the scene renders from the clip (held on
+    # its last frame past its ~5 s: "scene duration beyond the clip's ~5 s
+    # is bridged by a slow hold... so audio always rules the timeline" -
+    # specs/01-requirements/05-mode-b-image-video.md) instead of Ken Burns.
+    video_path: str | None = None
 
 
 def clip_render_duration(
@@ -70,11 +76,28 @@ def _zoompan_filter(render_duration_s: float, width: int, height: int, zoom_in: 
     )
 
 
+def _footage_filter(render_duration_s: float, width: int, height: int) -> str:
+    """Generated-footage scene: normalize the AI clip to the target frame
+    (cover-fit crop), pin the frame rate, hold the last frame indefinitely
+    (`tpad` clone; tpad has no whole_dur - that's apad's option), then trim
+    to the exact render duration. Works for clips shorter OR longer than
+    the scene's audio without probing the clip, and the exact duration
+    keeps the xfade offset math identical to the Ken Burns branch."""
+    return (
+        f"fps={FPS},"
+        f"scale={width}:{height}:force_original_aspect_ratio=increase,"
+        f"crop={width}:{height},"
+        f"tpad=stop_mode=clone:stop=-1,"
+        f"trim=duration={render_duration_s:.3f},setpts=PTS-STARTPTS"
+    )
+
+
 def build_kenburns_filter_complex(
     clips: list[SceneClip], width: int, height: int, xfade_s: float = XFADE_S
 ) -> tuple[str, str]:
     """Returns (filter_complex_string, output_video_label). Assumes each
-    clip's image is input index `clip.index` (0-based, in render order).
+    clip's image (or motion clip, for generated footage) is input index
+    `clip.index` (0-based, in render order).
     """
     n = len(clips)
     if n == 0:
@@ -84,8 +107,11 @@ def build_kenburns_filter_complex(
     labels = []
     for clip in clips:
         render_duration = clip_render_duration(clip.index, n, clip.duration_s, xfade_s)
-        zoom_in = clip.index % 2 == 0
-        vf = _zoompan_filter(render_duration, width, height, zoom_in)
+        if clip.video_path is not None:
+            vf = _footage_filter(render_duration, width, height)
+        else:
+            zoom_in = clip.index % 2 == 0
+            vf = _zoompan_filter(render_duration, width, height, zoom_in)
         label = f"v{clip.index}"
         per_clip_filters.append(f"[{clip.index}:v]{vf},format=yuv420p,setsar=1[{label}]")
         labels.append(label)

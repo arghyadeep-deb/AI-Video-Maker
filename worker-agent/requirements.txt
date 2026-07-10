@@ -1,0 +1,7 @@
+# Agent core — deliberately tiny; heavy model deps live in a SEPARATE
+# engines venv (see requirements-engines.txt + setup.md).
+requests>=2.31
+
+# Optional tray icon (agent runs headless without them):
+pystray>=0.19
+Pillow>=10.0

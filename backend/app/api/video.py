@@ -31,7 +31,7 @@ from app.models.postrender import (
 )
 from app.models.video import VideoRequest
 from app.pipelines.common import load_project_and_scenes, project_dir as _project_dir
-from app.quota import guards
+from app.quota import guards, tier
 from app.services import image_service
 from app.services.job_repo import row_to_job as _row_to_job
 
@@ -92,6 +92,18 @@ def create_render_job(
             "UPDATE projects SET status = 'generating', mode = 'a' WHERE id = ?", (project_id,)
         )
     else:
+        if payload.visual_level == "footage":
+            # specs/01-requirements/05-mode-b-image-video.md: "Generated
+            # footage is only offered while the GPU worker is online" -
+            # honest rejection up front; a worker lost *mid-render* instead
+            # degrades per-scene inside the pipeline.
+            state = tier.compute_tier_state(conn, get_settings())
+            if "scene_gen" not in state.worker_capabilities:
+                raise AppError(
+                    "Generated footage isn't available right now",
+                    hint="The GPU machine is offline - Photo level is available, "
+                    "or try again when the badge says 'Generated footage available'",
+                )
         job_id = job_queue.enqueue(
             conn, user_id, project_id, "render_mode_b",
             {
@@ -99,6 +111,7 @@ def create_render_job(
                 "subtitle_style": payload.subtitle_style,
                 "music_enabled": payload.music_enabled,
                 "music_mood": payload.music_mood,
+                "visual_level": payload.visual_level,
             },
         )
         conn.execute(
@@ -265,6 +278,9 @@ async def swap_scene_image(
     await image_service.download_candidate(chosen, out_path)
     new_meta = image_service._credit_meta(chosen, engine_used, alternates)
     mode_b._upsert_media_asset(conn, project_id, "image", scene_id, out_path, new_meta)
+    # A swapped image invalidates any generated-footage clip made from the
+    # old image - the scene falls back to Ken Burns honestly (task-20a).
+    mode_b.delete_scene_clip(conn, project_id, scene_id)
 
     job_id = job_queue.enqueue(
         conn, user_id, project_id, "rerender_scene",

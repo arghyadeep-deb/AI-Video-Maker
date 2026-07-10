@@ -39,6 +39,12 @@ def input_audio(path: Path) -> list[str]:
     return ["-i", str(path)]
 
 
+def input_video(path: Path) -> list[str]:
+    """A generated-footage motion clip (task-20a). No -loop/-t: the
+    filtergraph's trim+tpad owns its duration."""
+    return ["-i", str(path)]
+
+
 def input_music_looped(path: Path, duration_s: float) -> list[str]:
     """Input args for a music track looped (if shorter than the video) and
     trimmed to exactly `duration_s` - specs/04-tasks/task-16-music-subtitle-styles.md.

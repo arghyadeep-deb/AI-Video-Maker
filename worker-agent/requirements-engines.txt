@@ -1,0 +1,20 @@
+# Engines venv — the owner's RTX 5070 Ti is Blackwell (sm_120), which needs
+# CUDA 12.8+ PyTorch builds (risk R12). Install torch FIRST from the cu128
+# index, then the rest:
+#
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+#   pip install -r requirements-engines.txt
+#
+# scene_gen (Wan 2.2 5B / LTX-Video) + voxcpm:
+diffusers>=0.32
+transformers>=4.46
+accelerate>=1.0
+imageio[ffmpeg]
+sentencepiece
+ftfy
+voxcpm
+soundfile
+
+# SadTalker / MuseTalk pin 2023-era deps and are installed from their own
+# repos into this same venv per THEIR requirements files - see setup.md
+# ("expect dependency surgery, document working pins" - risk R12).

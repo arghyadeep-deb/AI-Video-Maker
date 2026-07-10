@@ -51,9 +51,43 @@ def test_zerogpu_seconds_remaining_reflects_partial_usage(conn):
     assert state.zerogpu_seconds_remaining == 180
 
 
-def test_worker_online_is_always_false_until_task_20a(conn):
-    """task-20a hasn't shipped a worker agent - this is a locked, honest
-    fact about the current build, not a config toggle."""
+def test_worker_online_false_when_no_agent_has_ever_polled(conn):
     settings = _settings(sadtalker_space_id="owner/sadtalker-space")
     state = compute_tier_state(conn, settings)
     assert state.worker_online is False
+    assert state.worker_capabilities == []
+
+
+def test_recent_worker_poll_flips_to_worker_tier(conn):
+    """task-20a: a live agent poll makes the home worker tier 1, above
+    ZeroGPU, and the badge promises footage only if scene_gen loaded."""
+    from app.jobs import gpu_router
+
+    settings = _settings(sadtalker_space_id="owner/sadtalker-space")
+    gpu_router.record_worker_poll(conn, ["sadtalker", "scene_gen"], 15000)
+    state = compute_tier_state(conn, settings)
+    assert state.worker_online is True
+    assert state.active_tier == "worker"
+    assert state.label == "Generated footage available"
+    assert state.worker_capabilities == ["sadtalker", "scene_gen"]
+
+
+def test_worker_without_scene_gen_gets_honest_hd_label(conn):
+    from app.jobs import gpu_router
+
+    gpu_router.record_worker_poll(conn, ["sadtalker"], 15000)
+    state = compute_tier_state(conn, _settings())
+    assert state.active_tier == "worker"
+    assert state.label == "HD available (home GPU)"
+
+
+def test_stale_worker_poll_degrades_back_down_the_tiers(conn):
+    from app.jobs import gpu_router
+
+    settings = _settings(
+        sadtalker_space_id="owner/sadtalker-space", worker_online_window_s=0.0
+    )
+    gpu_router.record_worker_poll(conn, ["sadtalker", "scene_gen"], 15000)
+    state = compute_tier_state(conn, settings)
+    assert state.worker_online is False
+    assert state.active_tier == "zerogpu"

@@ -104,6 +104,9 @@ MEDIA_ROOT=/opt/aivideomaker/data/media
 FRONTEND_ORIGIN=https://your-frontend.vercel.app
 JWT_SECRET=
 RETENTION_DAYS=14
+# Home GPU worker (task-20a): same string as worker-agent/config.toml's
+# `token` on the owner's PC. Leave empty to keep worker endpoints disabled.
+WORKER_TOKEN=
 EOF
     log "Edit $ENV_FILE now (JWT_SECRET especially - generate with: python3 -c 'import secrets; print(secrets.token_hex(32))'), then re-run this script."
     exit 1

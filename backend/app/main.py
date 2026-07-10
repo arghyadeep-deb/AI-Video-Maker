@@ -8,6 +8,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from app.api import admin, auth, avatars, jobs, me, meta, projects, script, video, voices
+from app.api import worker as worker_api
 from app.core.config import get_settings
 from app.core.errors import AppError, ForbiddenError, NotFoundError, UnauthorizedError
 from app.core.limiter import limiter
@@ -91,6 +92,7 @@ def create_app() -> FastAPI:
     app.include_router(avatars.router, prefix="/api/avatars", tags=["avatars"])
     app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
     app.include_router(voices.router, prefix="/api/voices", tags=["voices"])
+    app.include_router(worker_api.router, prefix="/api/worker", tags=["worker"])
     return app
 
 

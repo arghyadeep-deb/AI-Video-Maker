@@ -28,8 +28,10 @@ from app.engines.ffmpeg.finishing import build_scale_pad_filter, build_subtitle_
 from app.engines.ffmpeg.progress import FFmpegError, run_with_progress
 from app.engines.talking_head.base import TalkingHeadEngine
 from app.engines.talking_head.chooser import render_with_fallback
+from app.engines.talking_head.home_worker import HomeWorkerTalkingHeadEngine
 from app.engines.talking_head.sadtalker_zerogpu import SadTalkerZeroGPUEngine
 from app.engines.talking_head.wav2lip_local import Wav2LipLocalEngine
+from app.jobs import gpu_router
 from app.engines.tts.edge import EdgeTTSEngine, to_wav16k
 from app.jobs.registry import JobContext, register_pipeline
 from app.pipelines.common import PipelineError, load_project_and_scenes, make_narration_engine, project_dir
@@ -73,6 +75,13 @@ def make_sadtalker_engine(settings, conn) -> Optional[TalkingHeadEngine]:
         conn=conn,
         daily_limit_seconds=settings.zerogpu_daily_seconds,
     )
+
+
+def make_home_worker_engine(settings, cancelled=None) -> Optional[TalkingHeadEngine]:
+    """Tier 1 (task-20a). Always constructed - the engine itself checks
+    worker presence per render, so a PC that comes online between two jobs
+    is picked up without any config change."""
+    return HomeWorkerTalkingHeadEngine(settings.db_path, settings, cancelled=cancelled)
 
 
 def _default_voice(language: str) -> str:
@@ -151,9 +160,16 @@ async def stage_animate(ctx: JobContext) -> None:
         audio_path = p_dir / "audio.mp3"
         wav_path = to_wav16k(audio_path)
 
-        hd_requested = bool(ctx.payload.get("hd_requested", False))
+        # None = server decides: HD by default while the home worker is
+        # online with a sadtalker engine loaded (specs/03-design/11-gpu-worker.md);
+        # an explicit user choice from the UI always wins.
+        hd_requested = ctx.payload.get("hd_requested")
+        if hd_requested is None:
+            hd_requested = "sadtalker" in gpu_router.worker_capabilities(conn, settings)
+        hd_requested = bool(hd_requested)
         wav2lip_engine = make_wav2lip_engine()
         sadtalker_engine = make_sadtalker_engine(settings, conn)
+        home_engine = make_home_worker_engine(settings, cancelled=ctx.cancelled)
 
         raw_output = p_dir / "raw_animated.mp4"
         audio_duration_s = probe_duration_s(wav_path) or 30.0
@@ -175,6 +191,7 @@ async def stage_animate(ctx: JobContext) -> None:
                 str(avatar["portrait_path"]),
                 str(wav_path),
                 str(raw_output),
+                home_engine=home_engine,
             )
         finally:
             ticker.cancel()

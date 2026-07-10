@@ -73,6 +73,29 @@ class Settings(BaseSettings):
     # deployed VoxCPM+MuseTalk Space, unset until deployed.
     voxcpm_space_id: Optional[str] = None
 
+    # Home GPU worker (task-20a, specs/03-design/11-gpu-worker.md). A single
+    # pre-shared token: owner-only infrastructure, not a user surface. Unset
+    # means the worker endpoints are disabled entirely (401 on every call).
+    worker_token: Optional[str] = None
+    # "Online" = the agent polled within this window. The agent long-polls
+    # on a ~25s cycle, so 60s tolerates one dropped request without the tier
+    # badge flapping, while a slept PC goes honestly offline within a minute.
+    worker_online_window_s: float = 60.0
+    # Design doc: heartbeat every 10s, "a job missing 3 heartbeats returns
+    # to the queue" — 35s gives the third miss a small grace margin.
+    worker_lease_timeout_s: float = 35.0
+    # Lease grants per gpu_task before it fails over to the next tier for
+    # good. 2 = one normal attempt + one retry after a mid-job PC sleep.
+    worker_task_max_attempts: int = 2
+    # Signed one-time input-download URLs; generous because a cold engine
+    # (model load) may delay the fetch, and each URL is still single-use.
+    worker_signed_url_ttl_s: float = 15 * 60
+    # How long a pipeline waits on one gpu_task before treating the worker
+    # tier as lost and falling back. Generous by design: a 5s scene_gen clip
+    # can take minutes on the 5070 Ti (specs/01-requirements/05-mode-b-image-video.md
+    # budgets 20-60 min per video).
+    worker_task_wait_timeout_s: float = 30 * 60
+
     media_root: Path = REPO_ROOT / "media"
     db_path: Path = REPO_ROOT / "media" / "app.db"
 

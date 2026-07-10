@@ -40,6 +40,21 @@ your actual account credentials.
 3. Set `FRONTEND_ORIGIN` in the VM's `deploy/.env` to the Vercel deployment's own URL (CORS — `app/main.py` reads this at startup).
 4. Deploy. Vercel redeploys automatically on every push to `main` once connected.
 
+## 3b. Home GPU worker (task-20a)
+
+1. On the VM, add `WORKER_TOKEN=<long random string>` to `deploy/.env`
+   (`python3 -c "import secrets; print(secrets.token_urlsafe(32))"`), then
+   `sudo systemctl restart aivideomaker-api`. Unset = worker endpoints stay
+   disabled, site runs fine on the CPU/ZeroGPU tiers.
+2. On the gaming PC, follow `worker-agent/setup.md` (one PowerShell script
+   + paste the same token into `config.toml`). Run `python -m worker_agent`.
+3. Verify: the generate page's tier badge flips to "Generated footage
+   available" (or "HD available") within ~30 s of the agent starting, and
+   back to "Photo mode only" within a minute of stopping it.
+4. Owner-first controls: tray "Pause now" (instant reclaim), `active_hours`
+   in config.toml, and automatic yield when anything else uses the GPU —
+   see `specs/03-design/11-gpu-worker.md`.
+
 ## 4. Backups (Cloudflare R2)
 
 1. Create an R2 bucket (e.g. `aivideomaker-backups`) and an API token scoped to it.

@@ -239,7 +239,7 @@ def test_create_render_job_enqueues_and_flips_project_to_generating(client, monk
     assert resp.status_code == 201, resp.text
     job = resp.json()
     assert job["type"] == "render_mode_b"
-    assert job["stages"] == ["tts", "images", "subtitles", "assemble", "finalize"]
+    assert job["stages"] == ["tts", "images", "footage", "subtitles", "assemble", "finalize"]
 
     project_after = c.get(f"/api/projects/{project['id']}").json()
     assert project_after["status"] == "generating"

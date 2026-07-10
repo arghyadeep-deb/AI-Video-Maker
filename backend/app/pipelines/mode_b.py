@@ -12,13 +12,20 @@ visible notice" fallback rule (recorded per-scene in the audio
 media_asset's own meta_json: `stock_fallback`/`fallback_reason`).
 """
 import json
+import shutil
 from pathlib import Path
 
 from app.core.config import get_settings
 from app.core.ids import new_id
 from app.db.connection import get_connection
 from app.engines.ffmpeg.audio_mix import build_music_duck_filter
-from app.engines.ffmpeg.builder import FFmpegCommand, input_audio, input_image_looped, input_music_looped
+from app.engines.ffmpeg.builder import (
+    FFmpegCommand,
+    input_audio,
+    input_image_looped,
+    input_music_looped,
+    input_video,
+)
 from app.engines.ffmpeg.kenburns import (
     SceneClip,
     build_audio_concat_filter,
@@ -32,6 +39,8 @@ from app.engines.images.pixabay import PixabayImages
 from app.engines.script_llm import ScriptLLM
 from app.engines.tts.base import WordTiming
 from app.engines.tts.edge import EdgeTTSEngine
+from app.jobs import gpu_router
+from app.jobs.gpu_router import GpuTaskFailed
 from app.jobs.registry import JobContext, register_pipeline
 from app.models.script import Scene
 from app.pipelines.common import PipelineError, load_project_and_scenes, make_narration_engine, project_dir
@@ -184,6 +193,104 @@ async def stage_subtitles(ctx: JobContext) -> None:
         conn.close()
 
 
+# Generated-footage clip length per scene - specs/01-requirements/
+# 05-mode-b-image-video.md: "a real AI-generated video clip (~5 s,
+# image->video)"; scene audio beyond it is bridged by the assembly's
+# hold-last-frame tail, so audio always rules the timeline.
+FOOTAGE_CLIP_SECONDS = 5.0
+
+
+def delete_scene_clip(conn, project_id: str, scene_id: int) -> None:
+    """Invalidate one scene's generated-footage clip (its source image
+    changed, e.g. a swap) - the scene honestly falls back to Ken Burns in
+    the next assembly rather than showing motion from a stale image."""
+    row = conn.execute(
+        "SELECT id, path FROM media_assets WHERE project_id = ? AND kind = 'clip' AND scene_id = ?",
+        (project_id, scene_id),
+    ).fetchone()
+    if row is None:
+        return
+    Path(row["path"]).unlink(missing_ok=True)
+    conn.execute("DELETE FROM media_assets WHERE id = ?", (row["id"],))
+    conn.commit()
+
+
+async def stage_footage(ctx: JobContext) -> None:
+    """Generated-footage level (task-20a): one AI motion clip per scene via
+    the home GPU worker's scene_gen engine. A worker lost mid-render is a
+    normal event, not a failure: remaining scenes keep Ken Burns and the
+    honest note lands in jobs.engine_notes ("honest note in the result" -
+    specs/01-requirements/05-mode-b-image-video.md).
+    """
+    settings = get_settings()
+    conn = get_connection(settings.db_path)
+    try:
+        if ctx.payload.get("visual_level", "photo") != "footage":
+            # Photo level. Also clear any clips left by an earlier footage
+            # render of this project so stale motion never resurfaces.
+            project_id = ctx.payload["project_id"]
+            _project, scenes = _load_project_and_scenes(conn, project_id)
+            for scene in scenes:
+                delete_scene_clip(conn, project_id, scene.id)
+            ctx.report(100)
+            return
+
+        project_id = ctx.payload["project_id"]
+        project, scenes = _load_project_and_scenes(conn, project_id)
+        images_dir = _project_dir(settings.media_root, project["user_id"], project_id) / "images"
+        width, height = FORMAT_RESOLUTION[project["format"]]
+
+        note = None
+        generated = 0
+        for i, scene in enumerate(scenes):
+            if ctx.cancelled():
+                return
+            if "scene_gen" not in gpu_router.worker_capabilities(conn, settings):
+                note = (
+                    f"footage: {generated}/{len(scenes)} scenes generated - "
+                    "GPU worker went offline, remaining scenes use photo motion"
+                )
+                break
+            image_path = images_dir / f"scene-{scene.id}.jpg"
+            clip_path = images_dir / f"scene-{scene.id}.mp4"
+            task_id = gpu_router.submit_task(
+                conn,
+                "scene_gen",
+                {
+                    "prompt": scene.visual_hint,
+                    "duration_s": FOOTAGE_CLIP_SECONDS,
+                    "width": width,
+                    "height": height,
+                },
+                [{"name": "scene.jpg", "path": str(image_path)}],
+            )
+            try:
+                row = await gpu_router.wait_for_task(
+                    settings.db_path, task_id, settings, cancelled=ctx.cancelled
+                )
+            except GpuTaskFailed as exc:
+                note = (
+                    f"footage: {generated}/{len(scenes)} scenes generated - "
+                    f"GPU worker lost ({exc}), remaining scenes use photo motion"
+                )
+                break
+            shutil.copyfile(row["result_path"], clip_path)
+            _upsert_media_asset(
+                conn, project_id, "clip", scene.id, clip_path,
+                {"engine": "scene_gen", "prompt": scene.visual_hint},
+            )
+            generated += 1
+            ctx.report(generated / len(scenes) * 100)
+
+        if note is None:
+            note = f"footage: {generated}/{len(scenes)} scenes generated"
+        conn.execute("UPDATE jobs SET engine_notes = ? WHERE id = ?", (note, ctx.job_id))
+        conn.commit()
+        ctx.report(100)
+    finally:
+        conn.close()
+
+
 def _scene_duration_s(project_dir: Path, scene: Scene) -> float:
     timings_path = (project_dir / "audio" / f"scene-{scene.id}.mp3").with_suffix(".timings.json")
     raw = json.loads(timings_path.read_text(encoding="utf-8"))
@@ -218,8 +325,25 @@ async def stage_assemble(ctx: JobContext) -> None:
         width, height = FORMAT_RESOLUTION[project["format"]]
 
         durations = [_scene_duration_s(project_dir, s) for s in scenes]
+        # Generated-footage clips (task-20a): a scene whose clip asset exists
+        # renders from the motion clip; every other scene keeps Ken Burns -
+        # a partially-generated video (worker lost mid-render) assembles
+        # honestly with mixed presentation rather than failing.
+        clip_paths = {
+            row["scene_id"]: row["path"]
+            for row in conn.execute(
+                "SELECT scene_id, path FROM media_assets WHERE project_id = ? AND kind = 'clip'",
+                (project_id,),
+            ).fetchall()
+            if Path(row["path"]).exists()
+        }
         clips = [
-            SceneClip(index=i, image_path=str(project_dir / "images" / f"scene-{s.id}.jpg"), duration_s=d)
+            SceneClip(
+                index=i,
+                image_path=str(project_dir / "images" / f"scene-{s.id}.jpg"),
+                duration_s=d,
+                video_path=clip_paths.get(s.id),
+            )
             for i, (s, d) in enumerate(zip(scenes, durations))
         ]
 
@@ -236,7 +360,9 @@ async def stage_assemble(ctx: JobContext) -> None:
 
         filters = [video_filter, audio_filter, subtitle_filter]
         image_inputs = [
-            input_image_looped(Path(c.image_path).resolve(), _padded_duration(c, len(clips)))
+            input_video(Path(c.video_path).resolve())
+            if c.video_path is not None
+            else input_image_looped(Path(c.image_path).resolve(), _padded_duration(c, len(clips)))
             for c in clips
         ]
         audio_inputs = [
@@ -379,6 +505,18 @@ def _write_credits(conn, project_id: str, project_dir: Path) -> None:
             url = meta.get("url", "")
             lines.append(f"Scene {row['scene_id']}: Photo by {photographer} via {source} - {url}")
 
+    clip_rows = conn.execute(
+        "SELECT scene_id FROM media_assets WHERE project_id = ? AND kind = 'clip' ORDER BY scene_id",
+        (project_id,),
+    ).fetchall()
+    if clip_rows:
+        scene_list = ", ".join(str(r["scene_id"]) for r in clip_rows)
+        lines += [
+            "", "Generated footage", "=" * 40, "",
+            f"Scene(s) {scene_list}: motion clips AI-generated from the credited "
+            "scene image (open-source image-to-video model, rendered on this site's own GPU)",
+        ]
+
     music_row = conn.execute(
         "SELECT * FROM media_assets WHERE project_id = ? AND kind = 'music'", (project_id,)
     ).fetchone()
@@ -398,6 +536,7 @@ def _write_credits(conn, project_id: str, project_dir: Path) -> None:
 MODE_B_PIPELINE = [
     ("tts", stage_tts),
     ("images", stage_images),
+    ("footage", stage_footage),
     ("subtitles", stage_subtitles),
     ("assemble", stage_assemble),
     ("finalize", stage_finalize),

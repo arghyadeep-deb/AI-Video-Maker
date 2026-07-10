@@ -96,6 +96,9 @@ async def stage_scene_image(ctx: JobContext) -> None:
         await image_service.download_candidate(candidate, out_path)
         meta = image_service._credit_meta(candidate, engine_used, alternates)
         mode_b._upsert_media_asset(conn, project_id, "image", scene.id, out_path, meta)
+        # A re-sourced image invalidates any generated-footage clip made
+        # from the old one - this scene falls back to Ken Burns (task-20a).
+        mode_b.delete_scene_clip(conn, project_id, scene_id)
         ctx.report(100)
     finally:
         conn.close()

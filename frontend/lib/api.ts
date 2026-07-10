@@ -169,6 +169,7 @@ export function getHealth(): Promise<HealthStatus> {
 
 export interface TierState {
   worker_online: boolean;
+  worker_capabilities: string[];
   zerogpu_seconds_remaining: number;
   sadtalker_configured: boolean;
   active_tier: "worker" | "zerogpu" | "cpu";
@@ -361,6 +362,7 @@ export function createRenderJob(
     subtitles?: boolean;
     subtitle_style?: SubtitleStyle;
     hd_requested?: boolean;
+    visual_level?: "photo" | "footage";
     music_enabled?: boolean;
     music_mood?: MusicMood;
   }

@@ -6,11 +6,12 @@
 // default-highlighted mode"); Mode A is available once an approved avatar
 // exists and the script is <=2 minutes.
 //
-// No SadTalker Space is deployed yet (task-11's hf-space/ is written but
-// not live), so there is no working "HD avatar" tier to offer honestly
-// right now - the HD toggle is deliberately left out rather than shown as
-// a checkbox that would silently do nothing. Add it back once task-20a's
-// GPU routing / a deployed Space actually exists.
+// HD avatars (task-20a): there is still no user-facing HD toggle - the
+// server decides at render time (hd_requested=null => SadTalker HD by
+// default while the home GPU worker is online, Wav2Lip otherwise), which
+// is honest without asking the user to reason about GPU availability.
+// The TierBadge reflects what's live; Mode B's footage level below is the
+// one explicit quality choice users actually control.
 //
 // Personal voice enrollment (task-18): every render now defaults to the
 // user's enrolled voice via make_narration_engine on the backend; stock
@@ -26,6 +27,7 @@ import {
   createRenderJob,
   getMusicMoods,
   getProject,
+  getTierState,
   getVoices,
   listApprovedAvatars,
   listVoiceProfiles,
@@ -35,6 +37,7 @@ import {
   type MusicMood,
   type Project,
   type SubtitleStyle,
+  type TierState,
   type VoiceTable,
 } from "@/lib/api";
 
@@ -65,6 +68,11 @@ export default function GeneratePage({ params }: { params: Promise<{ id: string 
   const [generating, setGenerating] = useState(false);
   const [hasEnrolledVoice, setHasEnrolledVoice] = useState<boolean | null>(null);
   const [manageVoiceOpen, setManageVoiceOpen] = useState(false);
+  // Generated footage (task-20a): only offered while the home GPU worker
+  // is online AND its scene_gen engine actually loaded - the toggle is
+  // gated on live tier state, never a checkbox that silently does nothing.
+  const [tier, setTier] = useState<TierState | null>(null);
+  const [visualLevel, setVisualLevel] = useState<"photo" | "footage">("photo");
 
   useEffect(() => {
     let cancelled = false;
@@ -85,6 +93,18 @@ export default function GeneratePage({ params }: { params: Promise<{ id: string 
         if (cancelled) return;
         setError(err instanceof ApiRequestError ? err.hint ?? err.message : "Failed to load project");
       });
+    getTierState()
+      .then((state) => {
+        if (!cancelled) {
+          setTier(state);
+          // The worker went offline since the page loaded? Never leave a
+          // stale "footage" selection that the API would reject.
+          if (!state.worker_capabilities.includes("scene_gen")) setVisualLevel("photo");
+        }
+      })
+      .catch(() => {
+        // Best-effort: without tier state the footage option just stays off.
+      });
     return () => {
       cancelled = true;
     };
@@ -92,6 +112,7 @@ export default function GeneratePage({ params }: { params: Promise<{ id: string 
 
   const modeATooLong = (project?.duration_s ?? 0) > MODE_A_MAX_DURATION_S;
   const modeADisabled = modeATooLong || avatars.length === 0;
+  const footageAvailable = tier?.worker_capabilities.includes("scene_gen") ?? false;
 
   async function handleGenerate() {
     if (!project) return;
@@ -108,6 +129,7 @@ export default function GeneratePage({ params }: { params: Promise<{ id: string 
         voice_profile_id: selectedVoice ?? undefined,
         subtitles: mode === "a" ? subtitlesOn : true,
         subtitle_style: subtitleStyle,
+        visual_level: mode === "b" ? visualLevel : undefined,
         music_enabled: musicEnabled,
         music_mood: musicEnabled ? musicMood ?? undefined : undefined,
       });
@@ -240,6 +262,58 @@ export default function GeneratePage({ params }: { params: Promise<{ id: string 
             />
             Subtitles
           </label>
+        </div>
+      )}
+
+      {mode === "b" && (
+        <div style={{ marginTop: "2rem" }}>
+          <h3 style={{ fontSize: "0.95rem", fontWeight: 600, marginBottom: "0.5rem" }}>
+            Visual quality
+          </h3>
+          <div style={{ display: "flex", gap: "1rem" }}>
+            <button
+              type="button"
+              onClick={() => setVisualLevel("photo")}
+              style={{
+                flex: 1,
+                textAlign: "left",
+                padding: "0.85rem 1rem",
+                borderRadius: 8,
+                border: `1px solid ${visualLevel === "photo" ? "var(--accent)" : "var(--border)"}`,
+                background: visualLevel === "photo" ? "var(--surface)" : "transparent",
+                cursor: "pointer",
+              }}
+            >
+              <p style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--text)" }}>Photo (fast)</p>
+              <p style={{ color: "var(--text-dim)", fontSize: "0.8rem", marginTop: "0.25rem" }}>
+                Stock/AI images with cinematic motion. Ready in a couple of minutes.
+              </p>
+            </button>
+            <button
+              type="button"
+              disabled={!footageAvailable}
+              onClick={() => setVisualLevel("footage")}
+              style={{
+                flex: 1,
+                textAlign: "left",
+                padding: "0.85rem 1rem",
+                borderRadius: 8,
+                border: `1px solid ${visualLevel === "footage" ? "var(--accent)" : "var(--border)"}`,
+                background: visualLevel === "footage" ? "var(--surface)" : "transparent",
+                opacity: footageAvailable ? 1 : 0.5,
+                cursor: footageAvailable ? "pointer" : "not-allowed",
+              }}
+            >
+              <p style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--text)" }}>
+                Generated footage
+              </p>
+              <p style={{ color: "var(--text-dim)", fontSize: "0.8rem", marginTop: "0.25rem" }}>
+                {footageAvailable
+                  ? "A real AI video clip for every scene. Takes 20-60 minutes - you'll be able to leave and come back."
+                  : "Needs the GPU machine online - check the badge above and try later."}
+              </p>
+            </button>
+          </div>
         </div>
       )}
 

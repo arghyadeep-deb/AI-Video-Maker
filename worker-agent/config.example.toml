@@ -1,0 +1,29 @@
+# AI Video Maker home GPU worker — copy to config.toml and fill in.
+# Locked owner-first defaults: specs/03-design/11-gpu-worker.md.
+
+vm_url = "https://your-site.example.com"
+token = "PASTE-THE-WORKER_TOKEN-FROM-THE-VM-ENV-HERE"
+
+# Owner-first yield thresholds: don't lease work when another process has
+# the card past these (checked between jobs; never contends mid-session).
+max_gpu_util_pct = 20.0
+min_vram_free_mb = 10240
+
+# Active windows, 24h clock; may cross midnight. Empty = always active.
+# active_hours = ["22:00-08:00"]
+active_hours = []
+
+# Upload pacing in Mbit/s; 0 = unlimited.
+bandwidth_limit_mbps = 0.0
+
+# Engines to probe and (if their deps/weights are present) advertise.
+engines = ["sadtalker", "scene_gen"]
+
+# Generated-footage backend: "wan" or "ltx". Provisional default; run
+# scripts/bakeoff.py and record the verdict (judgment gate #3) before launch.
+scene_gen_backend = "wan"
+
+# Engine tool locations (see setup.md).
+# sadtalker_dir = 'C:\\tools\\SadTalker'
+# musetalk_dir = 'C:\\tools\\MuseTalk'
+# engines_python = 'C:\\tools\\engines-venv\\Scripts\\python.exe'
