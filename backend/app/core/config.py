@@ -40,6 +40,15 @@ class Settings(BaseSettings):
     pixabay_api_key: Optional[str] = None
     hf_token: Optional[str] = None
 
+    # Risk R2's wired TEXT fallback chain (specs/06-risks-and-future/01-risks.md):
+    # Gemini -> Groq -> OpenRouter, tried in order when Gemini fails for
+    # quota or availability. Both are OpenAI-compatible free tiers; model
+    # names are config because free-tier catalogs churn.
+    groq_api_key: Optional[str] = None
+    groq_model: str = "llama-3.3-70b-versatile"
+    openrouter_api_key: Optional[str] = None
+    openrouter_model: str = "meta-llama/llama-3.3-70b-instruct:free"
+
     # specs/04-tasks/task-15-quotas-fairness.md: "key pool: rotation only,
     # ToS caveat logged here". Comma-separated ADDITIONAL keys beyond
     # gemini_api_key - rotating keys is resilience against a single

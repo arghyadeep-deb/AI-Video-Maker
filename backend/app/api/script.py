@@ -14,7 +14,7 @@ from app.core.config import get_settings
 from app.core.deps import get_current_user_id, get_db
 from app.core.errors import NotFoundError
 from app.core.ids import new_id
-from app.engines.script_llm import ScriptLLM
+from app.engines.script_llm import ScriptLLM, make_script_llm
 from app.models.project import ProjectOut
 from app.models.script import (
     ApplyRequest,
@@ -34,8 +34,7 @@ router = APIRouter()
 
 
 def get_script_llm() -> ScriptLLM:
-    settings = get_settings()
-    return ScriptLLM(api_key=settings.gemini_api_keys, model=settings.script_llm_model)
+    return make_script_llm(get_settings())
 
 
 def _fetch_latest_version_row(conn: sqlite3.Connection, project_id: str) -> sqlite3.Row:

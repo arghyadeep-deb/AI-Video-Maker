@@ -36,7 +36,7 @@ from app.engines.ffmpeg.progress import FFmpegError, run_with_progress
 from app.engines.images.genai_fallback import GenaiFallbackImages
 from app.engines.images.pexels import PexelsImages
 from app.engines.images.pixabay import PixabayImages
-from app.engines.script_llm import ScriptLLM
+from app.engines.script_llm import make_script_llm
 from app.engines.tts.base import WordTiming
 from app.engines.tts.edge import EdgeTTSEngine
 from app.jobs import gpu_router
@@ -138,7 +138,7 @@ async def stage_images(ctx: JobContext) -> None:
         project, scenes = _load_project_and_scenes(conn, project_id)
 
         if any(s.visual_hint_stale for s in scenes):
-            llm = ScriptLLM(api_key=settings.gemini_api_key, model=settings.script_llm_model)
+            llm = make_script_llm(settings)
             scenes = await image_service.refresh_stale_hints(llm, scenes)
 
         images_dir = _project_dir(settings.media_root, project["user_id"], project_id) / "images"

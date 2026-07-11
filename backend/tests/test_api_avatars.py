@@ -175,12 +175,27 @@ def test_portrait_endpoint_404s_before_styling_completes(client):
     assert portrait_resp.status_code == 404
 
 
-def test_approve_requires_a_styled_portrait_first(client):
+class CrashingImageStyler:
+    """A genuine crash (NOT ImageStylerUnavailableError) - the R2 degrade
+    must not swallow real bugs, so this leaves the avatar portrait-less."""
+
+    def style(self, selfie_bytes, selfie_mime_type, persona_description):
+        raise RuntimeError("styler exploded")
+
+
+def test_approve_requires_a_styled_portrait_first(client, monkeypatch):
     app, c = client
+    # Deterministically portrait-less: the styling job fails outright.
+    # (Before the repo-root .env held real keys, "no styler configured" made
+    # this implicit; now it must be explicit or the test would hit the real
+    # network and race the worker.)
+    monkeypatch.setattr(avatar_styling, "make_image_styler", lambda: CrashingImageStyler())
     resp = _upload(c)
     avatar_id = resp.json()["id"]
-    # No styling has run yet in this test (no worker step forced) - approve
-    # immediately should fail cleanly rather than approving an empty portrait.
+    job = _poll_until_terminal(c, resp.json()["job_id"])
+    assert job["status"] == "failed"  # a real crash still fails honestly
+    # Approve with no portrait on file should fail cleanly rather than
+    # approving an empty portrait.
     approve_resp = c.post(f"/api/avatars/{avatar_id}/approve")
     assert approve_resp.status_code == 400
 

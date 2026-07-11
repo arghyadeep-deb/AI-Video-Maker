@@ -4,9 +4,13 @@ from app.main import create_app
 
 
 def _client(monkeypatch, tmp_path, **env):
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.delenv("PEXELS_API_KEY", raising=False)
-    monkeypatch.delenv("PIXABAY_API_KEY", raising=False)
+    # setenv("") rather than delenv: with a real repo-root .env now present
+    # (live keys since 2026-07-11), delenv would let pydantic-settings fall
+    # back to the dotenv FILE - an empty env var wins over it and stays
+    # falsy for the health endpoint's bool() checks.
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+    monkeypatch.setenv("PEXELS_API_KEY", "")
+    monkeypatch.setenv("PIXABAY_API_KEY", "")
     for key, value in env.items():
         monkeypatch.setenv(key, value)
     monkeypatch.setenv("DB_PATH", str(tmp_path / "app.db"))
