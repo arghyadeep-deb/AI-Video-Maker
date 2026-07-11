@@ -167,8 +167,22 @@ def test_successful_upload_enqueues_styling_job(client, monkeypatch):
     assert portrait_resp.content == stub._portrait_bytes
 
 
-def test_portrait_endpoint_404s_before_styling_completes(client):
-    _, c = client
+class SlowImageStyler:
+    """Deliberately slower than any real check-immediately-after-upload
+    request can round-trip - without this, whether the job has already
+    finished by the time the test's very next line runs is a genuine race
+    (and R2's raw-selfie fallback in avatar_styling.py made the no-stub
+    default path resolve near-instantly, breaking that race outright - a
+    real regression this test caught)."""
+
+    def style(self, selfie_bytes, selfie_mime_type, persona_description):
+        time.sleep(0.5)
+        return b"\xff\xd8\xff\xe0-fake-portrait-jpeg"
+
+
+def test_portrait_endpoint_404s_before_styling_completes(client, monkeypatch):
+    app, c = client
+    monkeypatch.setattr(avatar_styling, "make_image_styler", lambda: SlowImageStyler())
     resp = _upload(c)
     avatar_id = resp.json()["id"]
     portrait_resp = c.get(f"/api/avatars/{avatar_id}/portrait")

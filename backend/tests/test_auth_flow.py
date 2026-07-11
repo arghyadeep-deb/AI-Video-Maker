@@ -67,6 +67,55 @@ def test_login_with_correct_credentials_sets_a_session_cookie_and_unlocks_routes
     assert resp2.status_code == 200
 
 
+def test_session_cookie_is_none_and_secure_for_a_cross_origin_deploy(client, monkeypatch):
+    """A frontend hosted elsewhere (Vercel) than the backend (task-20's
+    ad-hoc PC-hosted deploy) needs SameSite=None - Lax would get set on
+    login but never sent back on the next cross-site fetch(), which is
+    exactly the bug this test guards (found live: login "succeeded", then
+    every following request 401'd)."""
+    _, c = client
+    monkeypatch.setenv("FRONTEND_ORIGIN", "https://example-frontend.vercel.app")
+    get_settings.cache_clear()
+    _create_user("cross@example.com", "correct horse battery staple")
+
+    resp = c.post("/api/auth/login", json={"email": "cross@example.com", "password": "correct horse battery staple"})
+    assert resp.status_code == 200
+    set_cookie = resp.headers.get("set-cookie", "")
+    assert "samesite=none" in set_cookie.lower()
+    assert "secure" in set_cookie.lower()
+
+
+def test_session_cookie_is_lax_for_localhost_dev(client):
+    """The default dev setup (frontend and backend both on localhost) keeps
+    the friendlier Lax/non-Secure cookie - no reason to require HTTPS
+    locally, and this is also what makes the TestClient's own plain-http
+    requests work at all (see conftest.py's FRONTEND_ORIGIN pin)."""
+    _, c = client
+    _create_user("local@example.com", "correct horse battery staple")
+
+    resp = c.post("/api/auth/login", json={"email": "local@example.com", "password": "correct horse battery staple"})
+    assert resp.status_code == 200
+    set_cookie = resp.headers.get("set-cookie", "")
+    assert "samesite=lax" in set_cookie.lower()
+    assert "secure" not in set_cookie.lower()
+
+
+def test_logout_cookie_deletion_matches_the_original_attributes(client, monkeypatch):
+    """Mismatched SameSite/Secure between set and delete can leave a stale
+    cookie the browser never actually clears - logout must use the exact
+    same attributes login used."""
+    _, c = client
+    monkeypatch.setenv("FRONTEND_ORIGIN", "https://example-frontend.vercel.app")
+    get_settings.cache_clear()
+    _create_user("logout-cross@example.com", "correct horse battery staple")
+    c.post("/api/auth/login", json={"email": "logout-cross@example.com", "password": "correct horse battery staple"})
+
+    resp = c.post("/api/auth/logout")
+    set_cookie = resp.headers.get("set-cookie", "")
+    assert "samesite=none" in set_cookie.lower()
+    assert "secure" in set_cookie.lower()
+
+
 def test_login_with_wrong_password_is_rejected(client):
     _, c = client
     _create_user("owner@example.com", "correct horse battery staple")

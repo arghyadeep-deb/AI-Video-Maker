@@ -12,6 +12,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, Response
 
+from app.api.auth import session_cookie_attrs
 from app.core.config import get_settings
 from app.core.deps import get_current_user_id, get_db
 from app.models.auth import UserOut
@@ -65,4 +66,4 @@ def delete_me(
 
     shutil.rmtree(settings.media_root / "users" / user_id, ignore_errors=True)
 
-    response.delete_cookie(settings.session_cookie_name, path="/")
+    response.delete_cookie(settings.session_cookie_name, **session_cookie_attrs(settings))

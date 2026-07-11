@@ -6,8 +6,21 @@ DEV_USER_ID = "00000000-0000-7000-8000-000000000001"
 
 
 @pytest.fixture(autouse=True)
-def _clear_settings_cache():
-    """Every test gets a fresh Settings() read from current env vars."""
+def _clear_settings_cache(monkeypatch):
+    """Every test gets a fresh Settings() read from current env vars.
+
+    Also pins FRONTEND_ORIGIN to the localhost default: the repo-root .env
+    now holds this machine's real, live deployment origin (task-20's ad-hoc
+    PC-hosted deploy), and Settings reads that file unconditionally. Left
+    unpinned, every test would silently inherit a non-localhost origin,
+    which flips the session cookie to Secure+SameSite=None
+    (app/api/auth.py's session_cookie_attrs) - a real cookie TestClient's
+    plain-http requests can't carry, breaking every cookie-auth test
+    (discovered live: login "succeeds" but the very next request 401s).
+    A test that specifically wants the cross-origin behavior can still
+    override this with its own monkeypatch.setenv, same as any other var.
+    """
+    monkeypatch.setenv("FRONTEND_ORIGIN", "http://localhost:3000")
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()

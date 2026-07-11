@@ -20,6 +20,16 @@ from app.models.auth import LoginRequest, UserOut
 router = APIRouter()
 
 
+def session_cookie_attrs(settings) -> dict:
+    """Shared set_cookie/delete_cookie attributes - a cross-origin deploy
+    (frontend on Vercel, backend elsewhere) needs SameSite=None (which
+    requires Secure); same-origin/localhost dev keeps the friendlier Lax.
+    Mismatched attributes between set and delete can leave a stale cookie
+    the browser never clears, so every cookie touch-point uses this."""
+    cross_origin = not settings.frontend_origin.startswith("http://localhost")
+    return {"samesite": "none" if cross_origin else "lax", "secure": cross_origin, "path": "/"}
+
+
 def _row_to_user(row: sqlite3.Row) -> UserOut:
     return UserOut(id=row["id"], email=row["email"], role=row["role"], created_at=row["created_at"])
 
@@ -44,10 +54,8 @@ def login(
         key=settings.session_cookie_name,
         value=token,
         httponly=True,
-        samesite="lax",
-        secure=not settings.frontend_origin.startswith("http://localhost"),
         max_age=settings.jwt_expire_minutes * 60,
-        path="/",
+        **session_cookie_attrs(settings),
     )
     return _row_to_user(row)
 
@@ -55,4 +63,4 @@ def login(
 @router.post("/logout", status_code=204)
 def logout(response: Response) -> None:
     settings = get_settings()
-    response.delete_cookie(settings.session_cookie_name, path="/")
+    response.delete_cookie(settings.session_cookie_name, **session_cookie_attrs(settings))
