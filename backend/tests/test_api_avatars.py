@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from app.core.config import get_settings
 from app.engines.image_styler import ImageStyler
 from app.main import create_app
-from tests.conftest import authenticate
+from tests.conftest import DEV_USER_ID, authenticate
 from app.pipelines import avatar_styling
 
 FIXTURE_FACE = (Path(__file__).parent / "fixtures" / "test_face.jpg").read_bytes()
@@ -167,24 +167,30 @@ def test_successful_upload_enqueues_styling_job(client, monkeypatch):
     assert portrait_resp.content == stub._portrait_bytes
 
 
-class SlowImageStyler:
-    """Deliberately slower than any real check-immediately-after-upload
-    request can round-trip - without this, whether the job has already
-    finished by the time the test's very next line runs is a genuine race
-    (and R2's raw-selfie fallback in avatar_styling.py made the no-stub
-    default path resolve near-instantly, breaking that race outright - a
-    real regression this test caught)."""
-
-    def style(self, selfie_bytes, selfie_mime_type, persona_description):
-        time.sleep(0.5)
-        return b"\xff\xd8\xff\xe0-fake-portrait-jpeg"
-
-
-def test_portrait_endpoint_404s_before_styling_completes(client, monkeypatch):
+def test_portrait_endpoint_404s_before_styling_completes(client):
+    """Not a job-timing race (found live: TestClient's request handling
+    drains the background worker to completion INSIDE the upload POST
+    itself before returning - even a deliberate artificial delay in a
+    stubbed styler got absorbed into that same call, making 'check right
+    after upload returns' non-deterministic no matter how slow styling
+    is). Instead this tests the endpoint's own guard directly: an avatar
+    row that genuinely has no portrait_path yet must 404, independent of
+    however job timing happens to shake out."""
     app, c = client
-    monkeypatch.setattr(avatar_styling, "make_image_styler", lambda: SlowImageStyler())
-    resp = _upload(c)
-    avatar_id = resp.json()["id"]
+    from app.core.ids import new_id
+    from app.db.connection import get_connection
+
+    settings = get_settings()
+    conn = get_connection(settings.db_path)
+    avatar_id = new_id()
+    conn.execute(
+        "INSERT INTO avatars (id, user_id, name, persona_description, selfie_path, portrait_path, approved) "
+        "VALUES (?, ?, 'Test', 'Astrologer', 'x.jpg', NULL, 0)",
+        (avatar_id, DEV_USER_ID),
+    )
+    conn.commit()
+    conn.close()
+
     portrait_resp = c.get(f"/api/avatars/{avatar_id}/portrait")
     assert portrait_resp.status_code == 404
 
