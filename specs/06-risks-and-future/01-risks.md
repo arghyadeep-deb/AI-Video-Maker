@@ -5,8 +5,13 @@ Ordered by (likelihood × impact). Every risk has a free mitigation — the zero
 ## R1 — edge-tts breaks (unofficial API) — HIGH likelihood over product lifetime
 Microsoft can change/close the endpoint any day. **Mitigation:** `TTSEngine` interface already isolates it; fallback = **Supertonic** (MIT, CPU-only ONNX, hi+en) + faster-whisper forced alignment for timings (both OSS); Parler-TTS as second reserve. Cost of switch: one engine file. See [`02-research/07-voice-engine-alternatives.md`](../02-research/07-voice-engine-alternatives.md). Watch: `rany2/edge-tts` issues.
 
-## R2 — Free-tier terms change (Gemini text/image) — MEDIUM
+## R2 — Free-tier terms change (Gemini text/image) — **TRIGGERED for image, 2026-07-11**
 Google has already moved Pro models off the free tier; Flash could follow or quotas shrink. **Mitigation:** model IDs and quotas are config; Groq/OpenRouter fallback for text. Image styling has no equally good free fallback — if nano banana goes paid, Mode A styling degrades to local SD+InstantID (GPU owners) or persona presets without selfie styling. Documented as an accepted product risk.
+
+**Status update (2026-07-11, verified live):** the image half fired. `gemini-2.5-flash-image` returns 429 with `limit: 0` on the free tier (Google shut the free image-preview model on 2026-01-15; current image models are API-paid-only — free image generation survives only in the Gemini *app*). Text (`gemini-flash-latest`) remains free and was live-verified the same day. Consequences applied:
+- **Mode B image chain**: unaffected in practice — stock-first (Pexels→Pixabay both live-verified); the genai third leg simply never fires (task-15's quota guard already degrades to stock-only honestly).
+- **Mode A styling**: `avatar_styling` now degrades honestly — on `ImageStylerUnavailableError` the RAW selfie is offered as the portrait at the existing approval gate, reason recorded in `jobs.engine_notes` (this is the "persona presets without selfie styling" floor).
+- **The wired fallback proper** — local styling on the owner's 5070 Ti (SD/SDXL+InstantID class, a new `styler` capability behind the existing `ImageStyler` interface; the task-20a worker infrastructure it needs now exists) — queued as follow-up work.
 
 ## R3 — GPU capacity is intermittent — MEDIUM (was HIGH before the home worker)
 Primary GPU is the owner's RTX 5070 Ti, online only when the PC is on; overflow is a few ZeroGPU minutes daily. **Mitigation (shipped, not theoretical):** three-tier routing (home worker → ZeroGPU → CPU) with lease/heartbeat re-queue, dynamic slot limits, and truthful UI state ("HD available / limited today"); Wav2Lip + OpenVoice CPU paths mean every feature has a zero-GPU floor. Mode B is 100% CPU-safe and is deliberately the default-highlighted mode.

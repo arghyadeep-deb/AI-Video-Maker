@@ -55,6 +55,51 @@ def _upload(c: TestClient, **overrides):
     return c.post("/api/avatars", files=files, data=data)
 
 
+class UnavailableImageStyler:
+    """Simulates risk R2's real July-2026 trigger: the image model's free
+    tier is gone (429 limit: 0)."""
+
+    def style(self, selfie_bytes, selfie_mime_type, persona_description):
+        from app.engines.image_styler import ImageStylerUnavailableError
+
+        raise ImageStylerUnavailableError("429 RESOURCE_EXHAUSTED limit: 0")
+
+
+def test_styling_unavailable_offers_raw_selfie_at_the_approval_gate(client, monkeypatch):
+    """R2 degrade (triggered 2026-07-11): styling quota gone -> the raw
+    selfie becomes the portrait attempt, the job still parks awaiting_user
+    (nothing auto-approves), and the reason is recorded honestly."""
+    app, c = client
+    monkeypatch.setattr(avatar_styling, "make_image_styler", lambda: UnavailableImageStyler())
+
+    resp = _upload(c)
+    assert resp.status_code == 201, resp.text
+    avatar_id = resp.json()["id"]
+    job = _poll_until_terminal(c, resp.json()["job_id"])
+    assert job["status"] == "awaiting_user"  # NOT failed - honest degrade
+
+    from app.db.connection import get_connection
+
+    settings = get_settings()
+    conn = get_connection(settings.db_path)
+    try:
+        avatar = conn.execute("SELECT * FROM avatars WHERE id = ?", (avatar_id,)).fetchone()
+        portrait = Path(avatar["portrait_path"])
+        selfie = Path(avatar["selfie_path"])
+        assert portrait.exists()
+        assert portrait.read_bytes() == selfie.read_bytes()  # the raw selfie, unstyled
+        notes = conn.execute(
+            "SELECT engine_notes FROM jobs WHERE id = ?", (resp.json()["job_id"],)
+        ).fetchone()["engine_notes"]
+        assert "styling unavailable" in notes
+    finally:
+        conn.close()
+
+    # The user can still approve it - the gate works as ever.
+    approve = c.post(f"/api/avatars/{avatar_id}/approve")
+    assert approve.status_code == 200, approve.text
+
+
 def test_upload_without_consent_is_rejected(client):
     _, c = client
     resp = _upload(c, consent="false")
