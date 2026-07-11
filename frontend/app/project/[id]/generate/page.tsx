@@ -373,6 +373,13 @@ export default function GeneratePage({ params }: { params: Promise<{ id: string 
                   cursor: "pointer",
                   fontWeight: selectedVoice === voiceId ? 600 : 400,
                   textTransform: "capitalize",
+                  // A text-hugging button with zero padding measured out to
+                  // a ~30x15px hit target in practice - too small to click
+                  // reliably, especially sitting right next to the audio
+                  // player's own scrubber (found live: clicks meant for
+                  // this button kept missing).
+                  padding: "0.4rem 0.5rem",
+                  minHeight: 32,
                 }}
               >
                 {gender}
