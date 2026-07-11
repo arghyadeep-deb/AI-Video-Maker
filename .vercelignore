@@ -1,0 +1,10 @@
+# Only frontend/ is needed to deploy the Next.js app (rootDirectory=frontend).
+# Everything else in this monorepo is backend/infra and would otherwise be
+# uploaded as build context, blowing past Vercel's 100 MB CLI-deploy limit.
+backend/
+worker-agent/
+media/
+specs/
+docs/
+deploy/
+.github/

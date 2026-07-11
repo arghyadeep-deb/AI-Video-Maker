@@ -17,7 +17,7 @@ packages:
   - git
 
 runcmd:
-  - export AIVIDEOMAKER_REPO_URL="https://github.com/REPLACE-ME/ai-video-maker.git"
+  - export AIVIDEOMAKER_REPO_URL="https://github.com/arghyadeep-deb/AI-Video-Maker.git"
   - git clone "$AIVIDEOMAKER_REPO_URL" /tmp/aivideomaker-bootstrap
   - bash /tmp/aivideomaker-bootstrap/deploy/setup_vm.sh || true
   - rm -rf /tmp/aivideomaker-bootstrap

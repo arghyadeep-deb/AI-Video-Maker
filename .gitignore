@@ -47,3 +47,10 @@ deploy/*.key
 # OS
 .DS_Store
 Thumbs.db
+
+.vercel
+.env*
+
+# PC-hosted dev/preview tunnel (deploy/tunnel/*.cmd are kept as reusable
+# tooling for a no-Oracle local demo path; their logs are transient)
+deploy/tunnel/*.log
