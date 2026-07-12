@@ -26,6 +26,7 @@ One complete build — the order below is a dependency sequence, not a release p
 | [20](./task-20-deployment.md) | Live on Oracle VM + Vercel + ZeroGPU Space |
 | [20a](./task-20a-gpu-worker.md) | RTX 5070 Ti worker: HD avatars + **generated-footage Mode B** (Wan/LTX per-scene clips) |
 | [21](./task-21-launch.md) | Polish, live matrix, ToS/licenses, launch |
+| [22](./task-22-local-hd-engines.md) | Local HD engines: SadTalker HD install + local portrait styler (R2 fallback) + Wan/LTX bake-off — all local, deploy last |
 
 ## Dependency chain
 
@@ -47,6 +48,7 @@ One complete build — the order below is a dependency sequence, not a release p
 14,15 → 20 (GPU features 11,18 deploy with it)
 11,15,18,20 → 20a
 all-prior → 21
+20a,21 → 22 (post-launch: finish the deferred GPU engines locally, deploy last)
 ```
 
 ## Suggested build order (one track)
