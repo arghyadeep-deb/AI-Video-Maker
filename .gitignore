@@ -20,6 +20,9 @@ worker-agent/.pytest_cache/
 worker-agent/bakeoff-results/
 worker-agent/agent.log
 
+# task-22's isolated :8001 dev-instance scratch logs (never live infra)
+deploy/task22/
+
 # Large model weights (fetched by backend/scripts/setup_models.py, not committed)
 backend/vendor/wav2lip/checkpoints/*.pth
 backend/vendor/wav2lip/face_detection/detection/sfd/*.pth

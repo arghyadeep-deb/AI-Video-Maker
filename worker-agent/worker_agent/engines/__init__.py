@@ -14,6 +14,7 @@ def _all_engines(config: AgentConfig) -> dict[str, Engine]:
     from worker_agent.engines.musetalk import MuseTalkEngine
     from worker_agent.engines.sadtalker import SadTalkerEngine
     from worker_agent.engines.scene_gen import SceneGenEngine
+    from worker_agent.engines.styler import StylerEngine
     from worker_agent.engines.voxcpm import VoxCPMEngine
 
     return {
@@ -21,6 +22,7 @@ def _all_engines(config: AgentConfig) -> dict[str, Engine]:
         "voxcpm": VoxCPMEngine(config),
         "musetalk": MuseTalkEngine(config),
         "scene_gen": SceneGenEngine(config),
+        "styler": StylerEngine(config),
     }
 
 

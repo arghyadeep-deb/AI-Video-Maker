@@ -100,6 +100,109 @@ def test_styling_unavailable_offers_raw_selfie_at_the_approval_gate(client, monk
     assert approve.status_code == 200, approve.text
 
 
+def _fake_styler_agent(db_path, settings, handler, cycles=100):
+    """Same fake-agent pattern as test_mode_b_footage.py's `_fake_agent`,
+    scoped to the `styler` capability - a thread speaking gpu_router's own
+    lease protocol so avatar_styling's home-worker tier (task-22) can be
+    exercised without a real GPU or the live agent process.
+
+    Breaks the moment its one task is handled, rather than looping for the
+    full `cycles` budget regardless - found live: a thread that outlives
+    its own test keeps writing to that test's tmp_path DB file after the
+    test function returns and the NEXT test's fixture starts tearing
+    directories down, which corrupted the on-disk file outright
+    ("database disk image is malformed") in a *later*, unrelated test.
+    """
+    import threading
+
+    from app.db.connection import get_connection
+    from app.jobs import gpu_router
+
+    def loop():
+        for _ in range(cycles):
+            conn = get_connection(db_path)
+            try:
+                gpu_router.record_worker_poll(conn, ["styler"], 15000)
+                row = gpu_router.lease_next_task(conn, ["styler"], settings)
+                if row is not None:
+                    outcome = handler(row, conn)
+                    if isinstance(outcome, Exception):
+                        gpu_router.fail_task(conn, row["id"], str(outcome))
+                    else:
+                        out = settings.media_root / "gpu_tasks" / row["id"] / "portrait.png"
+                        out.parent.mkdir(parents=True, exist_ok=True)
+                        out.write_bytes(outcome)
+                        gpu_router.complete_task(conn, row["id"], out)
+                    return  # task handled - stop, don't outlive the test
+            finally:
+                conn.close()
+            threading.Event().wait(0.02)
+
+    thread = threading.Thread(target=loop, daemon=True)
+    thread.start()
+    return thread
+
+
+def test_gemini_unavailable_falls_to_home_worker_styler(client, monkeypatch):
+    """task-22 tier 2: Gemini's quota gone (R2), but the home worker is
+    online and advertises `styler` - it should produce a real styled
+    portrait, not fall all the way to the raw-selfie floor."""
+    app, c = client
+    monkeypatch.setattr(avatar_styling, "make_image_styler", lambda: UnavailableImageStyler())
+
+    settings = get_settings()
+    _fake_styler_agent(settings.db_path, settings, lambda row, conn: b"styled-by-home-worker-png")
+
+    resp = _upload(c)
+    avatar_id = resp.json()["id"]
+    job = _poll_until_terminal(c, resp.json()["job_id"], timeout_s=10.0)
+    assert job["status"] == "awaiting_user"
+
+    from app.db.connection import get_connection
+
+    conn = get_connection(settings.db_path)
+    try:
+        avatar = conn.execute("SELECT * FROM avatars WHERE id = ?", (avatar_id,)).fetchone()
+        portrait = Path(avatar["portrait_path"])
+        assert portrait.read_bytes() == b"styled-by-home-worker-png"
+        notes = conn.execute(
+            "SELECT engine_notes FROM jobs WHERE id = ?", (resp.json()["job_id"],)
+        ).fetchone()["engine_notes"]
+        assert notes == "styled via home worker (gemini unavailable)"
+    finally:
+        conn.close()
+
+
+def test_gemini_and_home_worker_both_unavailable_falls_to_raw_selfie(client, monkeypatch):
+    """The full three-tier fall-through: Gemini fails, no home worker is
+    online at all (no fake agent started here), so it must still land on
+    the honest raw-selfie floor rather than failing the job outright."""
+    app, c = client
+    monkeypatch.setattr(avatar_styling, "make_image_styler", lambda: UnavailableImageStyler())
+
+    resp = _upload(c)
+    avatar_id = resp.json()["id"]
+    job = _poll_until_terminal(c, resp.json()["job_id"])
+    assert job["status"] == "awaiting_user"
+
+    from app.db.connection import get_connection
+
+    settings = get_settings()
+    conn = get_connection(settings.db_path)
+    try:
+        avatar = conn.execute("SELECT * FROM avatars WHERE id = ?", (avatar_id,)).fetchone()
+        portrait = Path(avatar["portrait_path"])
+        selfie = Path(avatar["selfie_path"])
+        assert portrait.read_bytes() == selfie.read_bytes()
+        notes = conn.execute(
+            "SELECT engine_notes FROM jobs WHERE id = ?", (resp.json()["job_id"],)
+        ).fetchone()["engine_notes"]
+        assert "styling unavailable" in notes
+        assert "home worker" in notes
+    finally:
+        conn.close()
+
+
 def test_upload_without_consent_is_rejected(client):
     _, c = client
     resp = _upload(c, consent="false")
