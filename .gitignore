@@ -18,6 +18,7 @@ worker-agent/config.toml
 worker-agent/**/__pycache__/
 worker-agent/.pytest_cache/
 worker-agent/bakeoff-results/
+worker-agent/agent.log
 
 # Large model weights (fetched by backend/scripts/setup_models.py, not committed)
 backend/vendor/wav2lip/checkpoints/*.pth
