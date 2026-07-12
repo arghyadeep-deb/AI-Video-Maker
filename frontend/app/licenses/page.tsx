@@ -29,15 +29,39 @@ export default function LicensesPage() {
 
       <Section title="Talking-head models">
         <p>
-          <strong>Wav2Lip</strong> (default CPU avatar engine) and <strong>SadTalker</strong> (HD
-          tier) are both released for personal/research/non-commercial use only, not commercial
-          use. <strong>This flag matters if this product is ever monetized</strong> — re-license or
-          replace both before that happens. Fine as-is for a free, non-commercial product.
+          <strong>Wav2Lip</strong> (default CPU avatar engine) is released for personal/research/
+          non-commercial use only, not commercial use. <strong>SadTalker</strong> (HD tier, added
+          task-22) is itself Apache License 2.0 — its own core license changed to commercial-
+          permissive in a later release than this product&apos;s specs originally assumed — but it
+          depends on GFPGAN (also Apache 2.0) and facexlib model weights for its face-enhancement
+          pass; those upstream weight licenses were not independently re-verified here.
+          <strong> This flag matters if this product is ever monetized</strong> — re-audit Wav2Lip
+          specifically, and the full facexlib/GFPGAN weight chain, before that happens. Fine as-is
+          for a free, non-commercial product.
         </p>
         <p style={{ marginTop: "0.5rem" }}>
           <strong>MuseTalk</strong> (enhance pass) — MIT License, free for commercial and
           non-commercial use, though some of its own upstream dependencies (Whisper, DWPose, S3FD)
           carry their own separate licenses.
+        </p>
+      </Section>
+
+      <Section title="Portrait styling">
+        <p>
+          <strong>IP-Adapter FaceID</strong> (identity-preserving persona styling, task-22 — the
+          local fallback for when Gemini&apos;s image API free tier is unavailable, as it has been
+          since July 2026) and the <strong>SDXL base model</strong> it runs on are both
+          commercial-usable (Apache License 2.0, and CreativeML Open RAIL++-M respectively — the
+          latter permits commercial use with behavioral-use restrictions, not a non-commercial
+          clause).
+        </p>
+        <p style={{ marginTop: "0.5rem" }}>
+          <strong>InsightFace</strong> (face-embedding extraction the styler depends on) — its
+          Python library is MIT-licensed, but the pretrained <code>buffalo_l</code> model weights
+          it downloads are <strong>non-commercial research use only</strong>; a separate commercial
+          license would be needed from InsightFace directly before this feature could ever be
+          monetized. Joins Wav2Lip in that same &quot;fine free, re-license before monetizing&quot;
+          category.
         </p>
       </Section>
 
