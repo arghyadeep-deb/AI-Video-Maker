@@ -52,22 +52,13 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
-    )
-
-    @app.middleware("http")
-    async def allow_private_network(request: Request, call_next):
         # Chrome's Private Network Access policy blocks a public page from
         # reaching an address it classifies as private (this backend's
         # Tailscale Funnel hostname resolves to a CGNAT IP) unless the
-        # preflight response opts in with this header - not a CORS
-        # concern in the usual sense, a separate browser security gate.
-        # Must be registered AFTER CORSMiddleware (Starlette's stack makes
-        # the last-registered middleware outermost) so it still runs even
-        # when CORSMiddleware short-circuits an OPTIONS preflight itself.
-        response = await call_next(request)
-        if request.headers.get("access-control-request-private-network") == "true":
-            response.headers["Access-Control-Allow-Private-Network"] = "true"
-        return response
+        # preflight explicitly allows it - Starlette's CORSMiddleware
+        # handles the whole PNA preflight natively via this one flag.
+        allow_private_network=True,
+    )
 
     @app.exception_handler(NotFoundError)
     async def not_found_handler(request: Request, exc: NotFoundError):
