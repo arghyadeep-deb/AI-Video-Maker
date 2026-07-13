@@ -61,10 +61,14 @@ Rules (follow exactly):
 2. Target about {words} words total across all scenes ({duration_s} seconds at natural narration pace).
 3. Produce between {min_scenes} and {max_scenes} scenes; each scene is 8-15 seconds of narration (roughly one sentence group).
 4. The first scene is a hook; the last scene is an outro or call-to-action.
-5. Write all numbers as words in {language_name}, never as digits.
+5. Within each scene's "text" field only, write all numbers as words in {language_name}, never as digits - this rule applies ONLY to narrated prose, never to the JSON structure itself (see field formats below).
 6. Never include emoji, markdown, or stage directions in "text" - it is read verbatim by text-to-speech.
 7. "visual_hint" is always in English regardless of narration language: 2-5 concrete, photographable keywords for a stock-image search describing that scene's visual.
 8. Match the register to the content's implied persona (e.g. an astrologer reading is warm and authoritative; a business explainer is crisp and confident).
+
+Required JSON field formats (exact, do not translate or spell out):
+- "language": the literal string "{language}" - not "{language_name}", exactly "{language}".
+- "scenes[].id": a plain integer starting at 1 (1, 2, 3, ...) - never a word like "one" or "first".
 
 Respond with JSON matching the required schema only.
 """

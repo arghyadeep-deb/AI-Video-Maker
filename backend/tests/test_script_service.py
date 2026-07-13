@@ -49,6 +49,17 @@ def test_scene_count_bounds():
     assert scene_count_bounds(30) == (2, 3)
 
 
+def test_build_prompt_is_explicit_about_literal_field_formats():
+    """Regression: the LLM was writing language="English" (the display name)
+    instead of "en", and scene ids as words ("One") instead of integers -
+    live-caught 422s, both fields' rule 5 phrasing was ambiguous about
+    whether "numbers as words" applied to the JSON structure itself."""
+    prompt = build_prompt("business tips", "en", 60)
+    assert 'the literal string "en"' in prompt
+    assert "never a word like" in prompt
+    assert "applies ONLY to narrated prose" in prompt
+
+
 def test_validate_contract_accepts_good_hindi():
     contract = validate_contract(_contract_json(), "hi", 30)
     assert contract.language == "hi"
