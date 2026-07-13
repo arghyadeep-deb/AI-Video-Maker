@@ -15,6 +15,7 @@ backend/.pytest_cache/
 # and in-flight task scratch never leave the owner's PC
 worker-agent/.venv/
 worker-agent/config.toml
+worker-agent/config.test8001.toml
 worker-agent/**/__pycache__/
 worker-agent/.pytest_cache/
 worker-agent/bakeoff-results/

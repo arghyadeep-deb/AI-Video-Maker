@@ -88,11 +88,12 @@ narrated in **your own voice** instead:
 6. Once approved, it's reusable across every future video — you won't need
    to redo this step.
 
-**Honest note**: right now, the "styling" step (turning your photo into,
-say, an astrologer illustration) isn't available — so what you'll see and
-approve is your own real, unedited photo. The avatar video itself still
-works fine; it just won't look like the fictional persona yet. Ask the
-owner if you're not sure whether this has changed.
+**Honest note**: styling only works while the owner's home GPU is online
+(check the badge on the generate page). When it's online, your photo is
+genuinely restyled into the persona you described. When it's offline,
+you'll see and approve your own real, unedited photo instead — the avatar
+video itself still works fine either way, it just won't look like the
+fictional persona when the GPU is offline.
 
 ## A few things worth knowing
 

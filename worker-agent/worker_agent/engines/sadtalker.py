@@ -51,20 +51,26 @@ class SadTalkerEngine(Engine):
             "--result_dir", str(result_dir),
             "--still", "--preprocess", "full",
         ]
-        proc = subprocess.Popen(
-            cmd, cwd=str(self._dir), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
-        )
-        # Poll-loop instead of wait(): abort (instant reclaim) must be able
-        # to kill a long render within a second.
-        while proc.poll() is None:
-            if abort.is_set():
-                proc.kill()
-                proc.wait()
-                raise EngineAborted("sadtalker aborted")
-            if abort.wait(1.0):
-                continue
+        # inference.py's tqdm progress output easily exceeds the OS pipe
+        # buffer; subprocess.PIPE with nothing draining it while polling
+        # deadlocks the child on its next write() once that fills. A real
+        # file has no such limit.
+        log_path = task_dir / "sadtalker.log"
+        with open(log_path, "w") as log_file:
+            proc = subprocess.Popen(
+                cmd, cwd=str(self._dir), stdout=log_file, stderr=subprocess.STDOUT, text=True
+            )
+            # Poll-loop instead of wait(): abort (instant reclaim) must be
+            # able to kill a long render within a second.
+            while proc.poll() is None:
+                if abort.is_set():
+                    proc.kill()
+                    proc.wait()
+                    raise EngineAborted("sadtalker aborted")
+                if abort.wait(1.0):
+                    continue
         if proc.returncode != 0:
-            tail = (proc.stdout.read() if proc.stdout else "")[-2000:]
+            tail = log_path.read_text(errors="replace")[-2000:]
             raise EngineError(f"sadtalker exited {proc.returncode}: {tail}")
 
         results = sorted(result_dir.rglob("*.mp4"))

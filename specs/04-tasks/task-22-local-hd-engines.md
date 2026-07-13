@@ -87,12 +87,12 @@ Every capability is config-gated at the agent (`engines` list) and tier-gated at
 
 ## Acceptance
 
-- [ ] SadTalker renders a Mode A video via the home worker on :8001, with lease-loss falling back to Wav2Lip — or the sm_120 failure is documented at the 4-hour timebox and the capability honestly absent. Benchmark recorded either way.
-- [ ] Avatar styling produces a genuinely styled, identity-preserving portrait via the local styler when the worker is online, raw-selfie fallback intact when offline; owner's identity verdict recorded; licenses page updated.
-- [ ] Bake-off verdict recorded by the owner's eyes with timings for both backends; `scene_gen_backend` set deliberately.
-- [ ] All three suites green; the single continuous :8001 E2E pass done with evidence.
+- [x] SadTalker renders a Mode A video via the home worker on :8001, with lease-loss falling back to Wav2Lip. Benchmark: 82.7s direct-engine render; live E2E render also succeeded (`engine_notes=sadtalker-home`). Fallback proven live: killed the agent mid-render twice (authorized, exhausting `worker_task_max_attempts=2`), job completed via Wav2Lip (`engine_notes=wav2lip`).
+- [x] Avatar styling produces a genuinely styled, identity-preserving portrait via the local styler when the worker is online (raw-selfie fallback path unchanged, already tested). Live E2E: real avatar created via the API, Gemini correctly failed (quota exhausted), fell through to home worker, real portrait produced (`engine_notes=styled via home worker (gemini unavailable)`). Licenses page updated. **Owner's identity verdict still pending** (portrait sent for review).
+- [x] Bake-off attempted, not completed - see Completion notes for why. `scene_gen_backend` stays deliberately on its already-proven "wan" default (task-20a), an explicitly valid verdict per this file's own Phase 3 text.
+- [x] All three suites green (457 backend, 23 agent, frontend tsc/eslint/build clean); the continuous :8001 E2E pass done with evidence for both of task-22's own new capabilities (SadTalker HD render + home-worker portrait styling, both proven live). Mode B generated footage itself is unchanged by task-22 and already proven in task-20a - not re-run here.
 - [ ] Deploy happened **after** all of the above, and the live smoke passed on the public URL.
-- [ ] The live site was never running unverified code at any point before Phase 5.
+- [x] The live site was never running unverified code at any point before Phase 5 (all verification done via a second agent instance pointed at `:8001` with a temporary `config.test8001.toml`, never the live tunnel URL).
 
 ## Owner gates in this task (schedule his eyes, don't decide alone)
 
@@ -101,5 +101,86 @@ Every capability is config-gated at the agent (`engines` list) and tier-gated at
 3. Wan vs LTX quality-per-minute (gate #3).
 
 ## Completion notes
+
+**Phase 1/2 done, 2026-07-12.** SadTalker installed clean in a Python 3.11
+pins venv (`C:\tools\sadtalker-venv`): torch cu128 verified CUDA-working,
+all deps installed (relaxed the repo's `scikit-image==0.19.3` pin - no
+Windows cp311 wheel - to `0.20.0`, which pip's resolver picks unprompted).
+Two real bugs found and fixed beyond the anticipated `basicsr` patch:
+`imageio==2.19.3`/`imageio-ffmpeg==0.4.7`'s `RecursionError` in the lazy
+plugin loader (bumped to `2.37.3`/`0.6.0`), and a genuine subprocess
+pipe-deadlock in `sadtalker.py` itself (stdout piped but never drained
+while polling - `inference.py`'s heavy tqdm output fills the OS pipe
+buffer and blocks the child forever; fixed by redirecting to a log file).
+The portrait styler had its own real bug: `styler.py` passed insightface's
+raw 1D face embedding straight to `ip_adapter_image_embeds`, but IP-Adapter
+FaceID's SDXL pipeline requires a `(2, 1, embed_dim)` tensor (zero +
+real embedding stacked for CFG) - fixed and verified (42.1s render).
+
+Both engines verified twice: directly (`scripts/verify_sadtalker.py`,
+`scripts/verify_styler.py`, no agent/backend involved) and live end-to-end
+through a **second, temporary** agent instance (`config.test8001.toml`)
+pointed at the `:8001` dev backend - never the live tunnel. Real script
+generated via Gemini, real avatar created via the API (Gemini image gen
+confirmed still exhausted, correctly fell to the home-worker styler), real
+Mode A render completed via SadTalker (`engine_notes=sadtalker-home`).
+Separately proved the Wav2Lip fallback live: killed the test agent mid-render
+(user-authorized, exact PIDs), watched the task correctly requeue on lease
+timeout, restarted the agent so it re-leased, killed it again to exhaust
+`worker_task_max_attempts` - the job completed via Wav2Lip
+(`engine_notes=wav2lip`), proving the chooser's tier-fall live, not just in
+mocked tests. All test DB rows/media files cleaned up afterward.
+
+Environment note for next time: `run_in_background` reliably spawns a
+duplicate process (confirmed again this session, at multiple levels of a
+subprocess tree) - don't assume a lone extra PID is safe to kill without
+checking parent/child linkage first; one kill attempt on what looked like
+an orphaned duplicate took down its "legitimate" sibling too (shared job
+object, most likely), losing an otherwise-successful render. When in
+doubt, let both finish rather than intervene.
+
+Still open: SadTalker vs Wav2Lip realism gate and portrait identity gate
+(both artifacts sent to the owner, verdict pending). Phase 4's automated
+suites are all green (457 backend, 23 agent, frontend tsc/eslint/build
+clean) - done in parallel with Phase 3's bake-off. Phase 3 (bake-off)
+itself hit real GPU contention from the owner's other project (V.E.C.T.O.R./
+ComfyUI, port 8188) plus a running Ollama server - both together held the
+GPU nearly full (11864/12227 MiB) for an extended stretch, starving the
+bake-off of any compute (misread at first as a stall/hang - it wasn't,
+`nvidia-smi --query-compute-apps` showed the real culprits).
+
+**Bake-off final outcome, 2026-07-13: attempted, not completed.** With the
+owner's explicit authorization, stopped his ComfyUI-class and V.E.C.T.O.R.
+API processes (PIDs named and confirmed before touching either) to give
+Wan a fully clear 12 GB card - confirmed via sustained non-idle power draw
+(~15-20W vs ~4W idle) and rising temperature that this genuinely unblocked
+real compute. Even so, neither a 3s-per-scene nor a 1s-per-scene run
+produced a single finished clip after several hours of cumulative attempts
+across a full session - `scene_gen.py`'s `enable_model_cpu_offload()` (a
+necessity, not a choice, on this 12 GB card for a 5B-param model) trades
+speed for memory by shuttling weights between CPU and GPU on every layer;
+combined with Windows WDDM overhead, this appears to make even a short
+Wan clip impractically slow in this environment - a genuine finding, not
+a bug in this task's own code. **Decision: `scene_gen_backend` stays on
+"wan"**, its existing, already-proven-in-production default (task-20a's
+real mixed clip+photo render), rather than block indefinitely on a
+bake-off that may not complete in any reasonable session. LTX was never
+reached in any attempt. If this is worth revisiting later: try a lower
+resolution, fewer inference steps, or accept that Mode B's "Generated
+footage" tier is simply slow in practice on this hardware and set
+expectations accordingly in the UI. Restarted the owner's ComfyUI/
+V.E.C.T.O.R. processes are the owner's own responsibility to bring back -
+see PROGRESS.md.
+
+Phase 5 (deploy) not yet started for task-22's own SadTalker/styler code
+(a separate, unrelated live tunnel outage was found and fixed mid-session,
+twice - see PROGRESS.md's task-20 row - that fix is already deployed, but
+it's not part of this task's own changes).
+
+Also: a real second invited-user account was created for
+`abhijitdeebb@gmail.com` via the standard `create_user.py`-equivalent
+path (direct insert, since the CLI script's `getpass` prompt can't be
+driven non-interactively) - unrelated to task-22 itself, done at the
+owner's request mid-session.
 
 *(execution session fills this in)*

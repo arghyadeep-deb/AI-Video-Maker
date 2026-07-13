@@ -36,7 +36,29 @@ go in a separate venv you point `engines_python` at.
      modern diffusers), set `sadtalker_dir` + `engines_python` (that
      venv's python.exe) in config.toml. Expect dependency surgery
      (2023-era pins) — record working pin versions here when found:
-     - *(pins discovered during install go here)*
+     - *(pins discovered during install, 2026-07-12)*: Python 3.11 venv
+       at `C:\tools\sadtalker-venv`. Install `torch`/`torchvision` (cu128)
+       *first*, then `pip install -r requirements.txt` — except relax the
+       repo's pinned `scikit-image==0.19.3` (no Windows cp311 wheel, needs
+       MSVC to build from source); pip's resolver settles on `0.20.0`
+       instead when that one line is dropped from the requirements file,
+       and it has a wheel. `numpy==1.23.4`/`scipy==1.10.1`/
+       `imageio==2.19.3` (the repo's other pins) install fine as-is.
+       Patch needed: `basicsr/data/degradations.py`'s
+       `from torchvision.transforms.functional_tensor import rgb_to_grayscale`
+       → `from torchvision.transforms.functional import rgb_to_grayscale`
+       (torchvision removed the `_tensor` submodule; the function moved).
+       Also relax the repo's `imageio==2.19.3`/`imageio-ffmpeg==0.4.7` pins
+       to `imageio>=2.30`/`imageio-ffmpeg>=0.4.9` — the old pair hits a
+       `RecursionError` in `imageio/plugins/__init__.py`'s lazy-plugin
+       `__getattr__` on this Python/numpy combo. Verified working end to
+       end 2026-07-12: fixture render in 82.7s.
+       **Separately, a real bug (not a pin) in `worker_agent/engines/sadtalker.py`**:
+       the original code did `subprocess.Popen(..., stdout=subprocess.PIPE)`
+       and only read that pipe in the failure branch, never while polling -
+       `inference.py`'s heavy tqdm output fills the OS pipe buffer and
+       deadlocks the child on its next write(). Fixed by redirecting to a
+       log file in `task_dir` instead of an unread pipe.
    - **musetalk** (lip enhance): same pattern, https://github.com/TMElyralab/MuseTalk,
      set `musetalk_dir`.
    - **voxcpm** (HD voice): needs Visual Studio Build Tools (C++ workload)

@@ -116,7 +116,16 @@ class StylerEngine(Engine):
             # error to blame them for.
             raise EngineError("no face detected in the selfie for identity conditioning")
         face = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
-        face_embeds = face.normed_embedding
+
+        import torch
+
+        # IP-Adapter FaceID's projection expects (batch, num_images, embed_dim) -
+        # a zero (unconditional) and real embedding stacked for CFG, matching
+        # how prompt embeddings are duplicated internally; not a plain 1D vector.
+        face_embeds = torch.from_numpy(face.normed_embedding).unsqueeze(0).unsqueeze(0)
+        id_embeds = torch.cat([torch.zeros_like(face_embeds), face_embeds], dim=0).to(
+            dtype=pipe.unet.dtype, device=pipe._execution_device
+        )
 
         def _step_callback(pipeline, step, timestep, kwargs):
             if abort.is_set():
@@ -128,7 +137,7 @@ class StylerEngine(Engine):
         prompt = f"Restyle this person as: {persona_description}{IDENTITY_SUFFIX}"
         result = pipe(
             prompt=prompt,
-            ip_adapter_image_embeds=[face_embeds],
+            ip_adapter_image_embeds=[id_embeds],
             width=width,
             height=height,
             num_inference_steps=30,
