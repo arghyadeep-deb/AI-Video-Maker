@@ -96,9 +96,9 @@ Every capability is config-gated at the agent (`engines` list) and tier-gated at
 
 ## Owner gates in this task (schedule his eyes, don't decide alone)
 
-1. Wav2Lip vs SadTalker realism (closes gate #1's remaining half).
-2. Styled-portrait identity preservation (R2 fallback quality).
-3. Wan vs LTX quality-per-minute (gate #3).
+1. **Wav2Lip vs SadTalker realism — APPROVED, 2026-07-13.** Owner reviewed the sent video and confirmed satisfied, deploy authorized.
+2. **Styled-portrait identity preservation — APPROVED, 2026-07-13.** Owner reviewed the sent portrait and confirmed satisfied, deploy authorized.
+3. Wan vs LTX quality-per-minute — moot, bake-off didn't complete (see Completion notes); existing "wan" default kept.
 
 ## Completion notes
 
