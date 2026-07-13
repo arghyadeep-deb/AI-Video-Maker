@@ -45,6 +45,19 @@ def create_app() -> FastAPI:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     app.add_middleware(SlowAPIMiddleware)
+
+    @app.middleware("http")
+    async def allow_private_network(request: Request, call_next):
+        # Chrome's Private Network Access policy blocks a public page from
+        # reaching an address it classifies as private (this backend's
+        # Tailscale Funnel hostname resolves to a CGNAT IP) unless the
+        # preflight response opts in with this header - not a CORS
+        # concern in the usual sense, a separate browser security gate.
+        response = await call_next(request)
+        if request.headers.get("access-control-request-private-network") == "true":
+            response.headers["Access-Control-Allow-Private-Network"] = "true"
+        return response
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[settings.frontend_origin],
