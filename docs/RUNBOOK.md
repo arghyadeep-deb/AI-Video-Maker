@@ -36,7 +36,7 @@ your actual account credentials.
 ## 3. Deploying the frontend
 
 1. In Vercel, import the repo, set the project root to `frontend/`.
-2. Set the environment variable `NEXT_PUBLIC_API_URL` to `https://<your-backend-domain>`.
+2. Set the environment variable `NEXT_PUBLIC_API_BASE_URL` to `https://<your-backend-domain>`.
 3. Set `FRONTEND_ORIGIN` in the VM's `deploy/.env` to the Vercel deployment's own URL (CORS — `app/main.py` reads this at startup).
 4. Deploy. Vercel redeploys automatically on every push to `main` once connected.
 
