@@ -110,6 +110,33 @@ def test_create_render_job_requires_accepted_script(client):
     assert create_resp.status_code == 400
 
 
+def test_create_render_job_allows_retry_after_a_failed_render(client):
+    """A render job's failure/cancellation never rewrites projects.status
+    back from "generating" (the worker has no notion of "project") - a
+    project whose only render attempt died (crash, restart, cancel) must
+    still be retryable, not permanently stuck behind the accepted-script
+    gate. Real bug: found live 2026-07-15 after a server restart aborted
+    an in-flight render, and the project could never be regenerated."""
+    import sqlite3
+
+    app, c = client
+    project = _accepted_project(c, app)
+    settings = get_settings()
+
+    conn = sqlite3.connect(settings.db_path)
+    conn.execute("UPDATE projects SET status = 'generating' WHERE id = ?", (project["id"],))
+    conn.execute(
+        "INSERT INTO jobs (id, user_id, project_id, type, status, stage, progress, payload_json) "
+        "VALUES ('job-1', ?, ?, 'render_mode_b', 'failed', 'tts', 0.0, '{}')",
+        (project["user_id"], project["id"]),
+    )
+    conn.commit()
+    conn.close()
+
+    resp = c.post(f"/api/projects/{project['id']}/video", json={"mode": "b"})
+    assert resp.status_code == 201
+
+
 def test_mode_a_requires_an_avatar_id(client):
     app, c = client
     project = _accepted_project(c, app)

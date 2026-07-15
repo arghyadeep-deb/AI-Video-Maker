@@ -34,6 +34,7 @@ from app.pipelines.common import load_project_and_scenes, project_dir as _projec
 from app.quota import guards, tier
 from app.services import image_service
 from app.services.job_repo import row_to_job as _row_to_job
+from app.services.project_repo import effective_status
 
 router = APIRouter()
 
@@ -55,7 +56,12 @@ def create_render_job(
     conn: sqlite3.Connection = Depends(get_db),
 ) -> JobOut:
     project = get_owned_project(conn, project_id, user_id)
-    if project["status"] != "accepted":
+    # A project's raw `status` column never reverts once it flips to
+    # "generating" - if the render that put it there later failed or got
+    # aborted (e.g. a server restart), the accepted script is still valid
+    # and the user should be able to retry, not get permanently stuck.
+    status = effective_status(conn, project_id, project["status"])
+    if status not in ("accepted", "failed", "cancelled"):
         raise AppError(
             "Script must be accepted before generating a video", hint="Accept the script first"
         )

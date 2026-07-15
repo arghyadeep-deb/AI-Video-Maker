@@ -9,6 +9,33 @@ from app.models.project import ProjectOut
 from app.services.script_repo import row_to_version
 
 
+def effective_status(conn: sqlite3.Connection, project_id: str, raw_status: str) -> str:
+    """Derive the true current status for a project whose raw `status` column
+    never reverts once it flips to "generating" - a render job's
+    failure/cancellation never rewrites projects.status (the worker is
+    pipeline-agnostic and has no notion of "project"). Checks the most
+    recent job instead, without touching the DB row. Shared by the
+    library-list display (api/projects.py) and the re-generate gate
+    (api/video.py) - task-13 fixed the former but not the latter, which
+    left a project whose render was killed permanently unable to retry."""
+    if raw_status != "generating":
+        return raw_status
+    active_job = conn.execute(
+        "SELECT id FROM jobs WHERE project_id = ? AND status IN ('queued', 'running') "
+        "ORDER BY created_at DESC LIMIT 1",
+        (project_id,),
+    ).fetchone()
+    if active_job is not None:
+        return raw_status
+    last_job = conn.execute(
+        "SELECT status FROM jobs WHERE project_id = ? ORDER BY created_at DESC LIMIT 1",
+        (project_id,),
+    ).fetchone()
+    if last_job is not None and last_job["status"] in ("failed", "cancelled"):
+        return last_job["status"]
+    return raw_status
+
+
 def row_to_project(
     row: sqlite3.Row, latest_version: Optional[sqlite3.Row] = None
 ) -> ProjectOut:

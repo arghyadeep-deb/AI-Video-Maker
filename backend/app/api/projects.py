@@ -11,7 +11,7 @@ from app.core.errors import NotFoundError
 from app.core.ids import new_id
 from app.models.project import ProjectCreate, ProjectOut, ProjectSummary
 from app.pipelines.common import project_dir
-from app.services.project_repo import row_to_project
+from app.services.project_repo import effective_status, row_to_project
 from app.services.script_repo import get_latest_version_row
 
 router = APIRouter()
@@ -85,20 +85,7 @@ def list_projects(
             (row["id"],),
         ).fetchone()
 
-        display_status = row["status"]
-        if display_status == "generating" and active_job is None:
-            # A render job's failure/cancellation never rewrites
-            # projects.status (the worker is pipeline-agnostic and has no
-            # notion of "project"), so without this a failed render would
-            # leave the project stuck showing "generating" forever with
-            # nothing left to poll. Derive the honest display status from
-            # the most recent job instead, without touching the DB row.
-            last_job = conn.execute(
-                "SELECT status FROM jobs WHERE project_id = ? ORDER BY created_at DESC LIMIT 1",
-                (row["id"],),
-            ).fetchone()
-            if last_job is not None and last_job["status"] in ("failed", "cancelled"):
-                display_status = last_job["status"]
+        display_status = effective_status(conn, row["id"], row["status"])
 
         summaries.append(
             ProjectSummary(
