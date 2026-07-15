@@ -27,11 +27,24 @@ your actual account credentials.
    python3 -c "import secrets; print(secrets.token_hex(32))"
    ```
 4. Re-run `sudo bash /opt/aivideomaker/deploy/setup_vm.sh` — this time it installs the systemd units, starts `aivideomaker-api`, and configures Caddy.
-5. Point your domain/subdomain's DNS `A` record at the VM's public IP. Caddy requests its own Let's Encrypt certificate automatically on first request to that domain — no manual cert steps.
-6. Create your (and the second user's, if any) account:
+5. Point your domain/subdomain's DNS `A` record at the VM's public IP. Caddy requests its own Let's Encrypt certificate automatically on first request to that domain — no manual cert steps. **No domain yet?** A free zero-signup option: `<ip-with-dashes>.sslip.io` (e.g. `80-225-213-134.sslip.io`) resolves straight to the VM's IP with no DNS setup at all, and Caddy can request a real Let's Encrypt cert for it like any other hostname — good enough to go live immediately, swap for a real domain later.
+6. `deploy/Caddyfile` reads its site address from the `AIVIDEOMAKER_DOMAIN` environment variable, but the stock Caddy systemd unit doesn't source any env file by default — set it via a drop-in or Caddy misparses the bare `{...}` block as global options (`unrecognized global option: reverse_proxy`) and refuses to start:
    ```
-   cd /opt/aivideomaker/backend && .venv/bin/python scripts/create_user.py you@example.com --admin
+   sudo mkdir -p /etc/systemd/system/caddy.service.d
+   printf '[Service]\nEnvironment=AIVIDEOMAKER_DOMAIN=<your-domain-or-sslip.io-hostname>\n' | sudo tee /etc/systemd/system/caddy.service.d/override.conf
+   sudo systemctl daemon-reload && sudo systemctl restart caddy
    ```
+7. **Oracle's Ubuntu image ships its own local `iptables` rules that only allow SSH (22)** — even after the OCI Security List permits 80/443, the VM's own firewall still drops them until you add rules explicitly:
+   ```
+   sudo iptables -I INPUT -p tcp --dport 80 -m state --state NEW -j ACCEPT
+   sudo iptables -I INPUT -p tcp --dport 443 -m state --state NEW -j ACCEPT
+   sudo netfilter-persistent save   # survive reboots
+   ```
+8. Create your (and the second user's, if any) account:
+   ```
+   cd /opt/aivideomaker/backend && sudo -u aivideomaker .venv/bin/python scripts/create_user.py you@example.com --admin
+   ```
+   To change a password later without recreating the account: `scripts/reset_password.py you@example.com` (same interactive prompt, updates in place).
 
 ## 3. Deploying the frontend
 

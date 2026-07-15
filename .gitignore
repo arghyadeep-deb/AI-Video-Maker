@@ -59,3 +59,16 @@ Thumbs.db
 # PC-hosted dev/preview tunnel (deploy/tunnel/*.cmd are kept as reusable
 # tooling for a no-Oracle local demo path; their logs are transient)
 deploy/tunnel/*.log
+
+# Local-only OCI CLI venv + API signing key (Oracle Always Free provisioning
+# helper) - never leaves the owner's PC
+deploy/oci-cli-venv/
+deploy/oci-api-key*.pem
+deploy/oci_config
+deploy/oracle_retry_launch.sh
+deploy/oracle_retry_launch.log
+deploy/oracle_launch_success.json
+deploy/x86_launch.json
+deploy/launch_attempt.json
+deploy/oracle_retry_stdout.log
+

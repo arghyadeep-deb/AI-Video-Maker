@@ -59,9 +59,10 @@ else
     log "User $APP_USER already exists, skipping."
 fi
 
-sudo mkdir -p "$APP_DIR" "$APP_DIR/data" "$APP_DIR/data/media" "$APP_DIR/data/backups"
-
 # --- 3. Application code -----------------------------------------------------
+# NOTE: directories under $APP_DIR are created *after* the clone (below) -
+# `git clone` refuses to clone into a non-empty directory, so $APP_DIR must
+# stay untouched (or not yet exist) until the repo is checked out.
 
 if [ ! -d "$APP_DIR/.git" ]; then
     if [ -z "$REPO_URL" ]; then
@@ -71,12 +72,20 @@ if [ ! -d "$APP_DIR/.git" ]; then
         exit 1
     fi
     log "Cloning $REPO_URL into $APP_DIR..."
+    sudo mkdir -p "$APP_DIR"
     sudo git clone "$REPO_URL" "$APP_DIR"
+    sudo chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 else
     log "Repo already present at $APP_DIR, pulling latest..."
+    # chown first - git refuses to operate as $APP_USER on a repo it doesn't
+    # own ("detected dubious ownership"), which bites on the very first re-run
+    # if the initial clone above ran as root (e.g. a manual clone before this
+    # script's first pass ever completed).
+    sudo chown -R "$APP_USER:$APP_USER" "$APP_DIR"
     sudo -u "$APP_USER" git -C "$APP_DIR" pull --ff-only
 fi
 
+sudo mkdir -p "$APP_DIR/data" "$APP_DIR/data/media" "$APP_DIR/data/backups"
 sudo chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 
 # --- 4. Backend Python environment -------------------------------------------
@@ -84,6 +93,16 @@ sudo chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 log "Setting up backend virtualenv..."
 sudo -u "$APP_USER" python3 -m venv "$APP_DIR/backend/.venv"
 sudo -u "$APP_USER" "$APP_DIR/backend/.venv/bin/pip" install --upgrade pip
+
+# CPU-only torch/torchvision first: this VM has no GPU (GPU inference lives
+# entirely on the owner's home worker, task-20a) - the backend only needs
+# torch for OpenVoice's CPU-floor voice conversion. Installing these before
+# requirements.txt keeps pip from pulling PyPI's default CUDA build (multiple
+# GB of nvidia-*/cuda-toolkit wheels that would never be used and can take
+# a very long time on a small free-tier instance).
+sudo -u "$APP_USER" "$APP_DIR/backend/.venv/bin/pip" install \
+    --index-url https://download.pytorch.org/whl/cpu \
+    torch torchvision
 sudo -u "$APP_USER" "$APP_DIR/backend/.venv/bin/pip" install -r "$APP_DIR/backend/requirements.txt"
 
 log "Fetching model weights (Wav2Lip, OpenVoice converter - idempotent, sha256-verified)..."
