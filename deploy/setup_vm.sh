@@ -131,6 +131,15 @@ EOF
     exit 1
 fi
 
+# The systemd unit loads $ENV_FILE via EnvironmentFile=, but app/core/config.py's
+# pydantic-settings looks for a plain ".env" at the repo root (REPO_ROOT/.env) -
+# any script run by hand (create_user.py, reset_password.py, a one-off shell)
+# without going through systemd never sees deploy/.env's values and silently
+# falls back to defaults, including a DIFFERENT db_path. This symlink makes
+# both paths resolve to the exact same file so manual scripts and the live
+# service always agree on which database (and which secrets) they're using.
+sudo ln -sf "$ENV_FILE" "$APP_DIR/.env"
+
 # --- 6. systemd units --------------------------------------------------------
 
 log "Installing systemd units..."

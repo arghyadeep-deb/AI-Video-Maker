@@ -40,11 +40,20 @@ your actual account credentials.
    sudo iptables -I INPUT -p tcp --dport 443 -m state --state NEW -j ACCEPT
    sudo netfilter-persistent save   # survive reboots
    ```
-8. Create your (and the second user's, if any) account:
+8. **Before creating any accounts**, make sure `$APP_DIR/.env` (repo root) is a symlink to `deploy/.env` — `setup_vm.sh` creates this automatically as of this fix, but if you ever run `create_user.py`/`reset_password.py` on an older checkout, check first:
+   ```
+   ls -la /opt/aivideomaker/.env   # should show -> deploy/.env
+   ```
+   Why this matters: the systemd service loads `deploy/.env` via `EnvironmentFile=`, but `create_user.py`/`reset_password.py` run by hand over SSH don't go through systemd at all — they only see whatever `app/core/config.py`'s pydantic-settings finds at `REPO_ROOT/.env`. Without the symlink, a manually-run script silently falls back to a *different* default `db_path` (`$APP_DIR/media/app.db` instead of the real `$APP_DIR/data/app.db`) — the account gets "created" successfully but into a database the live API never reads, and login fails with "Invalid email or password" no matter how correct the password is. This bit a real deploy (2026-07-15) before the symlink fix.
+9. Create your (and the second user's, if any) account:
    ```
    cd /opt/aivideomaker/backend && sudo -u aivideomaker .venv/bin/python scripts/create_user.py you@example.com --admin
    ```
-   To change a password later without recreating the account: `scripts/reset_password.py you@example.com` (same interactive prompt, updates in place).
+   To change a password later without recreating the account: `scripts/reset_password.py you@example.com` (same interactive prompt, updates in place). **Sanity check after either command** — confirm the account landed in the right database:
+   ```
+   sudo -u aivideomaker .venv/bin/python -c "from app.core.config import get_settings; print(get_settings().db_path)"
+   # must print /opt/aivideomaker/data/app.db, not .../media/app.db
+   ```
 
 ## 3. Deploying the frontend
 
