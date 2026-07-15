@@ -121,7 +121,7 @@ function ResultBody({ projectId }: { projectId: string }) {
     <main style={{ maxWidth: 640, margin: "0 auto", padding: "4rem 1.5rem" }}>
       <h1 style={{ fontSize: "1.5rem", fontWeight: 600 }}>{project.title ?? "Untitled"}</h1>
 
-      {jobError && <p style={{ color: "var(--bad)", marginTop: "1rem" }}>{jobError}</p>}
+      {jobError && <p style={{ color: "var(--text-dim)", marginTop: "1rem" }}>{jobError}</p>}
 
       {job && !done && (
         <div style={{ marginTop: "2rem" }}>
