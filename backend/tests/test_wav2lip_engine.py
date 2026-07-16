@@ -6,6 +6,7 @@ ffprobe sanity." Needs the vendored repo + downloaded weights
 than failing, so the rest of the suite stays green on a machine that
 hasn't run setup yet.
 """
+import asyncio
 import json
 import subprocess
 import time
@@ -60,3 +61,48 @@ async def test_wav2lip_renders_a_real_talking_head_video(tmp_path):
     source_duration = float(source_probe["format"]["duration"])
     output_duration = float(probe["format"]["duration"])
     assert abs(output_duration - source_duration) < 1.0
+
+
+@pytest.mark.asyncio
+async def test_concurrent_renders_do_not_cross_contaminate(tmp_path):
+    """Real bug found live 2026-07-16: every invocation used to share
+    VENDOR_DIR as its cwd, and Wav2Lip's own inference.py hardcodes the
+    relative path `temp/result.avi` - two invocations overlapping in time
+    (e.g. a manual debug run alongside the live job queue, which is
+    exactly what happened) raced on that one path. The render that lost
+    the race silently produced a video with the *other* run's frame count
+    - no error, no crash, just a video ~1.8x longer than its own audio.
+    Proves the fix: two renders with genuinely different audio lengths,
+    started concurrently, must each end up matching their own audio -
+    never swapped, never averaged, never contaminated by the other."""
+    short_audio = tmp_path / "short.wav"
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", str(FIXTURE_DIR / "test_audio_16k.wav"), "-t", "3.000", str(short_audio)],
+        check=True, capture_output=True, timeout=30,
+    )
+    short_duration = float(_ffprobe(short_audio)["format"]["duration"])
+    long_duration = float(_ffprobe(FIXTURE_DIR / "test_audio_16k.wav")["format"]["duration"])
+    assert short_duration < long_duration - 1.0  # the two renders must be genuinely distinguishable
+
+    engine_a = Wav2LipLocalEngine()
+    engine_b = Wav2LipLocalEngine()
+    output_a = tmp_path / "result_a.mp4"
+    output_b = tmp_path / "result_b.mp4"
+
+    result_a, result_b = await asyncio.gather(
+        engine_a.render(
+            portrait_path=str(FIXTURE_DIR / "test_face.jpg"),
+            wav_path=str(short_audio),
+            output_path=str(output_a),
+        ),
+        engine_b.render(
+            portrait_path=str(FIXTURE_DIR / "test_face.jpg"),
+            wav_path=str(FIXTURE_DIR / "test_audio_16k.wav"),
+            output_path=str(output_b),
+        ),
+    )
+
+    duration_a = float(_ffprobe(Path(result_a.video_path))["format"]["duration"])
+    duration_b = float(_ffprobe(Path(result_b.video_path))["format"]["duration"])
+    assert abs(duration_a - short_duration) < 1.0
+    assert abs(duration_b - long_duration) < 1.0
