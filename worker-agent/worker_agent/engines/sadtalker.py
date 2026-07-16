@@ -7,12 +7,18 @@ code pins ancient deps — risk R12 — so it lives in its own venv,
 setup_worker.ps1 automates it.
 """
 import subprocess
+import sys
 import threading
 from pathlib import Path
 from typing import Callable
 
 from worker_agent.config import AgentConfig
 from worker_agent.engines.base import Engine, EngineAborted, EngineError
+
+# Windows-only: without this, every subprocess launch flashes a fresh
+# console window when the agent itself has no console to inherit from
+# (headless via pythonw.exe) - see gpu.py's own copy of this same fix.
+_CREATE_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 
 class SadTalkerEngine(Engine):
@@ -58,7 +64,8 @@ class SadTalkerEngine(Engine):
         log_path = task_dir / "sadtalker.log"
         with open(log_path, "w") as log_file:
             proc = subprocess.Popen(
-                cmd, cwd=str(self._dir), stdout=log_file, stderr=subprocess.STDOUT, text=True
+                cmd, cwd=str(self._dir), stdout=log_file, stderr=subprocess.STDOUT, text=True,
+                creationflags=_CREATE_NO_WINDOW,
             )
             # Poll-loop instead of wait(): abort (instant reclaim) must be
             # able to kill a long render within a second.

@@ -5,6 +5,7 @@ Checked between jobs, before every lease (specs/03-design/11-gpu-worker.md:
 injectable so tests exercise the parsing and yield decisions without a GPU.
 """
 import subprocess
+import sys
 from dataclasses import dataclass
 from typing import Callable, Optional
 
@@ -13,6 +14,15 @@ QUERY_CMD = [
     "--query-gpu=utilization.gpu,memory.free,name",
     "--format=csv,noheader,nounits",
 ]
+
+# Windows-only: nvidia-smi is a console app, and without this flag every
+# invocation flashes a brand new console window on screen - invisible when
+# the agent itself runs in a terminal (the child just inherits it), but a
+# real, repeating (every idle_check_interval_s, by default 15s) visual
+# glitch once the agent runs headless via pythonw.exe with no console of
+# its own to inherit - found live 2026-07-16 right after setting the
+# worker up to run silently at logon.
+_CREATE_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 
 @dataclass(frozen=True)
@@ -23,7 +33,10 @@ class GpuStatus:
 
 
 def _default_runner(cmd: list[str]) -> str:
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=True).stdout
+    return subprocess.run(
+        cmd, capture_output=True, text=True, timeout=10, check=True,
+        creationflags=_CREATE_NO_WINDOW,
+    ).stdout
 
 
 def probe(runner: Callable[[list[str]], str] = _default_runner) -> Optional[GpuStatus]:

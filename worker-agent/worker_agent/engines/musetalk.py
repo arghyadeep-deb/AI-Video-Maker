@@ -1,12 +1,18 @@
 """MuseTalk lip-enhance pass (~6 GB VRAM) — same subprocess-in-own-venv
 pattern as SadTalker; see specs/03-design/11-gpu-worker.md."""
 import subprocess
+import sys
 import threading
 from pathlib import Path
 from typing import Callable
 
 from worker_agent.config import AgentConfig
 from worker_agent.engines.base import Engine, EngineAborted, EngineError
+
+# Windows-only: without this, every subprocess launch flashes a fresh
+# console window when the agent itself has no console to inherit from
+# (headless via pythonw.exe) - see gpu.py's own copy of this same fix.
+_CREATE_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 
 class MuseTalkEngine(Engine):
@@ -43,7 +49,8 @@ class MuseTalkEngine(Engine):
             "--result_path", str(out_path),
         ]
         proc = subprocess.Popen(
-            cmd, cwd=str(self._dir), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+            cmd, cwd=str(self._dir), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+            creationflags=_CREATE_NO_WINDOW,
         )
         while proc.poll() is None:
             if abort.is_set():
