@@ -30,9 +30,19 @@ class FFmpegCommand:
         return args
 
 
-def input_image_looped(path: Path, duration_s: float) -> list[str]:
-    """Input args for a still image looped for `duration_s` seconds."""
-    return ["-loop", "1", "-t", f"{duration_s:.3f}", "-i", str(path)]
+def input_image_still(path: Path) -> list[str]:
+    """Input args for a still image, fed as a single frame - `zoompan`
+    expects exactly one input frame and expands it into `d` output frames
+    itself (see kenburns.py's `_zoompan_filter`). Looping the input first
+    (`-loop 1 -t duration`, this function's previous behavior) instead
+    feeds zoompan one input frame per demuxer tick (image2's default is
+    25 fps), and it multiplies its own `d` output frames by *each* of
+    those - a real bug found live 2026-07-16: a ~55 s video rendered as
+    ~91,000 frames (>3000 s) on this box's ffmpeg 6.1.1/aarch64 build.
+    `-shortest` on the final mux does not reliably mask this for a
+    filter_complex-generated stream (confirmed live), so the fix has to
+    be at the source, not a downstream duration cap."""
+    return ["-i", str(path)]
 
 
 def input_audio(path: Path) -> list[str]:

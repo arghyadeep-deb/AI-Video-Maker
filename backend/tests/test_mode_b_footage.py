@@ -235,10 +235,10 @@ def test_mixed_clip_and_photo_scenes_assemble_with_real_ffmpeg(tmp_path):
     from app.engines.ffmpeg.builder import (
         FFmpegCommand,
         input_audio,
-        input_image_looped,
+        input_image_still,
         input_video,
     )
-    from app.engines.ffmpeg.kenburns import build_audio_concat_filter, clip_render_duration
+    from app.engines.ffmpeg.kenburns import build_audio_concat_filter
 
     clip_path = tmp_path / "scene1.mp4"
     subprocess.run(
@@ -271,7 +271,7 @@ def test_mixed_clip_and_photo_scenes_assemble_with_real_ffmpeg(tmp_path):
     audio_filter, audio_label = build_audio_concat_filter(2, audio_input_start_index=2)
     inputs = [
         input_video(clip_path),
-        input_image_looped(image_path, clip_render_duration(1, 2, 2.0)),
+        input_image_still(image_path),
         input_audio(audio_paths[0]),
         input_audio(audio_paths[1]),
     ]
@@ -293,3 +293,19 @@ def test_mixed_clip_and_photo_scenes_assemble_with_real_ffmpeg(tmp_path):
     duration = float(probe.stdout.strip())
     # One-audio-clock: total length == sum of scene audio durations.
     assert duration == pytest.approx(5.0, abs=0.35)
+
+    # Regression guard (found live 2026-07-16): `-shortest` on the final mux
+    # does not reliably truncate a filter_complex-generated video stream, so
+    # a zoompan frame-count bug (feeding it a *looped* image input instead
+    # of a single frame made it multiply its own `d` output frames per
+    # input frame it received) produced a real ~91,000-frame, 3035 s video
+    # for what should have been ~55 s - checking the container's overall
+    # `format=duration` alone would NOT have caught this. Assert the video
+    # stream's own duration directly, independent of the audio stream.
+    video_probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(out)],
+        check=True, capture_output=True, text=True, timeout=30,
+    )
+    video_duration = float(video_probe.stdout.strip())
+    assert video_duration == pytest.approx(5.0, abs=0.35)

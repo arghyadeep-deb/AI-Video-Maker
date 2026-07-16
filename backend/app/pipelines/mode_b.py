@@ -22,7 +22,7 @@ from app.engines.ffmpeg.audio_mix import build_music_duck_filter
 from app.engines.ffmpeg.builder import (
     FFmpegCommand,
     input_audio,
-    input_image_looped,
+    input_image_still,
     input_music_looped,
     input_video,
 )
@@ -362,7 +362,7 @@ async def stage_assemble(ctx: JobContext) -> None:
         image_inputs = [
             input_video(Path(c.video_path).resolve())
             if c.video_path is not None
-            else input_image_looped(Path(c.image_path).resolve(), _padded_duration(c, len(clips)))
+            else input_image_still(Path(c.image_path).resolve())
             for c in clips
         ]
         audio_inputs = [
@@ -428,12 +428,6 @@ async def stage_assemble(ctx: JobContext) -> None:
             )
     finally:
         conn.close()
-
-
-def _padded_duration(clip: SceneClip, n_scenes: int) -> float:
-    from app.engines.ffmpeg.kenburns import clip_render_duration
-
-    return clip_render_duration(clip.index, n_scenes, clip.duration_s)
 
 
 async def stage_finalize(ctx: JobContext) -> None:
