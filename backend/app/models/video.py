@@ -9,7 +9,14 @@ MusicMood = Literal["calm", "upbeat", "mystical", "corporate"]
 class VideoRequest(BaseModel):
     mode: Literal["a", "b"]
     avatar_id: Optional[str] = None
-    voice_profile_id: Optional[str] = None
+    # A stock voice table ID (e.g. "hi-IN-MadhurNeural") - the male/female
+    # picker on the generate page. Persisted onto projects.voice at render
+    # start (below) so stage_tts's existing `project["voice"] or default`
+    # lookup honors it; the user's own enrolled/cloned voice, if any, still
+    # takes priority over this at the narration-engine level regardless
+    # (make_narration_engine), matching the "every render defaults to your
+    # own voice" rule - this only picks the stock fallback's gender.
+    voice: Optional[str] = None
     subtitles: bool = True
     subtitle_style: Literal["phrase", "karaoke"] = "phrase"
     # None = "let the server decide at render time": HD by default while

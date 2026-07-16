@@ -110,6 +110,38 @@ def test_create_render_job_requires_accepted_script(client):
     assert create_resp.status_code == 400
 
 
+def test_create_render_job_persists_the_requested_stock_voice(client):
+    """The generate page's male/female picker sends `voice` on the render
+    request - real bug found live 2026-07-16: this field didn't exist at
+    all (it was called voice_profile_id and nothing ever read it), so the
+    picker was pure decoration - every render silently used the enrolled
+    voice or, failing that, always the hardcoded female stock default,
+    regardless of what the user picked. project.voice must reflect the
+    request (stage_tts's own `project["voice"] or default` lookup relies
+    on this column being set correctly before the pipeline runs)."""
+    app, c = client
+    project = _accepted_project(c, app)
+
+    resp = c.post(
+        f"/api/projects/{project['id']}/video",
+        json={"mode": "b", "voice": "hi-IN-MadhurNeural"},
+    )
+    assert resp.status_code == 201
+    updated = c.get(f"/api/projects/{project['id']}").json()
+    assert updated["voice"] == "hi-IN-MadhurNeural"
+
+
+def test_create_render_job_rejects_a_voice_not_in_the_projects_language(client):
+    app, c = client
+    project = _accepted_project(c, app)  # language="hi"
+
+    resp = c.post(
+        f"/api/projects/{project['id']}/video",
+        json={"mode": "b", "voice": "en-US-AriaNeural"},
+    )
+    assert resp.status_code == 400
+
+
 def test_create_render_job_allows_retry_after_a_failed_render(client):
     """A render job's failure/cancellation never rewrites projects.status
     back from "generating" (the worker has no notion of "project") - a

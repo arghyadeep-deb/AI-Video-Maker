@@ -126,7 +126,7 @@ export default function GeneratePage({ params }: { params: Promise<{ id: string 
       const job = await createRenderJob(project.id, {
         mode,
         avatar_id: mode === "a" ? selectedAvatarId ?? undefined : undefined,
-        voice_profile_id: selectedVoice ?? undefined,
+        voice: selectedVoice ?? undefined,
         subtitles: mode === "a" ? subtitlesOn : true,
         subtitle_style: subtitleStyle,
         visual_level: mode === "b" ? visualLevel : undefined,

@@ -66,6 +66,14 @@ def create_render_job(
             "Script must be accepted before generating a video", hint="Accept the script first"
         )
 
+    if payload.voice:
+        valid_voices = set(get_settings().voice_table.get(project["language"], {}).values())
+        if payload.voice not in valid_voices:
+            raise AppError(
+                "Unknown voice for this project's language", hint="Pick one of the offered voices"
+            )
+        conn.execute("UPDATE projects SET voice = ? WHERE id = ?", (payload.voice, project_id))
+
     if payload.mode == "a":
         if project["duration_s"] > MODE_A_MAX_DURATION_S:
             raise AppError(

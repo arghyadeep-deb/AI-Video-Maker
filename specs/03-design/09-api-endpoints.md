@@ -58,7 +58,7 @@ All JSON; errors follow `{error: {code, message, hint?}}`. **Every route below `
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| POST | `/api/projects/{id}/video` | `{mode, voice_profile_id (defaults to enrolled), hd_voice?, subtitles?, subtitle_style?, music?, avatar_id?}` → `render_mode_a/b` job |
+| POST | `/api/projects/{id}/video` | `{mode, voice? (stock voice table ID - the enrolled/cloned voice, if any, always wins regardless), hd_voice?, subtitles?, subtitle_style?, music?, avatar_id?}` → `render_mode_a/b` job |
 | POST | `/api/projects/{id}/rerender` | `{mode}` → `rerender_other_mode` job (same accepted script) |
 | POST | `/api/projects/{id}/scenes/{sid}/rerender` | Re-render one scene (audio+image), re-splice video |
 | GET | `/api/projects/{id}/scenes/{sid}/candidates` | Image candidates for swap picker |

@@ -358,7 +358,7 @@ export function createRenderJob(
   input: {
     mode: "a" | "b";
     avatar_id?: string;
-    voice_profile_id?: string;
+    voice?: string;
     subtitles?: boolean;
     subtitle_style?: SubtitleStyle;
     hd_requested?: boolean;
