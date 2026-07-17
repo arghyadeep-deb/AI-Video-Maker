@@ -206,13 +206,21 @@ async def wait_for_task(
     settings: Settings,
     cancelled: Optional[Callable[[], bool]] = None,
     poll_interval_s: float = WAIT_POLL_INTERVAL_S,
+    timeout_s: Optional[float] = None,
 ) -> sqlite3.Row:
     """Await a submitted task from inside a pipeline stage. Returns the done
     row (result_path set). Raises GpuTaskFailed on failure, exhausted
     attempts, or overall timeout; propagates the pipeline's own cancel by
     cancelling the task and raising GpuTaskFailed(cancelled=True)-shaped
-    message (the stage's normal cancelled() check does the rest)."""
-    deadline = asyncio.get_event_loop().time() + settings.worker_task_wait_timeout_s
+    message (the stage's normal cancelled() check does the rest).
+
+    timeout_s overrides settings.worker_task_wait_timeout_s for callers that
+    know their engine's realistic ceiling is much shorter than the general
+    30-minute budget (see mode_b.py's scene_gen wait) - a hopeless wait
+    otherwise leaves the pipeline (and the user) stuck for the full default
+    before falling back to the next tier."""
+    effective_timeout_s = timeout_s if timeout_s is not None else settings.worker_task_wait_timeout_s
+    deadline = asyncio.get_event_loop().time() + effective_timeout_s
     while True:
         conn = get_connection(db_path)
         try:
@@ -232,7 +240,7 @@ async def wait_for_task(
             if asyncio.get_event_loop().time() >= deadline:
                 cancel_task(conn, task_id)
                 raise GpuTaskFailed(
-                    f"gpu task {task_id} timed out after {settings.worker_task_wait_timeout_s:.0f}s"
+                    f"gpu task {task_id} timed out after {effective_timeout_s:.0f}s"
                 )
         finally:
             conn.close()

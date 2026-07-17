@@ -91,8 +91,17 @@ class Settings(BaseSettings):
     # badge flapping, while a slept PC goes honestly offline within a minute.
     worker_online_window_s: float = 60.0
     # Design doc: heartbeat every 10s, "a job missing 3 heartbeats returns
-    # to the queue" — 35s gives the third miss a small grace margin.
-    worker_lease_timeout_s: float = 35.0
+    # to the queue" — 35s gives the third miss a small grace margin. Too
+    # tight in practice for scene_gen: its model-load+inference pass runs
+    # many minutes on the home PC, and the owner's home network has real,
+    # observed multi-minute dropouts (the same path SSH to this VM also
+    # rides). A single missed heartbeat during that long window reliably
+    # blew the 35s budget and silently reclaimed the lease mid-generation,
+    # falling back to Ken Burns every time - found live 2026-07-16 tracing
+    # why Generated Footage never actually produced a generated clip.
+    # 120s (~12 heartbeat cycles) tolerates realistic network jitter while
+    # still detecting a genuinely slept/crashed PC within ~2 minutes.
+    worker_lease_timeout_s: float = 120.0
     # Lease grants per gpu_task before it fails over to the next tier for
     # good. 2 = one normal attempt + one retry after a mid-job PC sleep.
     worker_task_max_attempts: int = 2

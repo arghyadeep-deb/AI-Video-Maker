@@ -199,6 +199,16 @@ async def stage_subtitles(ctx: JobContext) -> None:
 # hold-last-frame tail, so audio always rules the timeline.
 FOOTAGE_CLIP_SECONDS = 5.0
 
+# Shorter than gpu_router's general 30-minute budget: found live 2026-07-17
+# that the scene_gen model (Wan2.2 + CPU-offload, required to fit the
+# 12GB card) can take 30+ minutes just to LOAD on this hardware - a
+# previously-documented, unresolved finding from the original bake-off
+# ("impractically slow... after hours of cumulative attempts"). Waiting
+# the full 30 min per scene before falling back to Ken Burns leaves users
+# stuck for a doomed attempt; 5 min still gives a real chance for a fast
+# load (warm cache, no contention) without the long honest-failure wait.
+SCENE_GEN_WAIT_TIMEOUT_S = 5 * 60
+
 
 def delete_scene_clip(conn, project_id: str, scene_id: int) -> None:
     """Invalidate one scene's generated-footage clip (its source image
@@ -266,7 +276,8 @@ async def stage_footage(ctx: JobContext) -> None:
             )
             try:
                 row = await gpu_router.wait_for_task(
-                    settings.db_path, task_id, settings, cancelled=ctx.cancelled
+                    settings.db_path, task_id, settings, cancelled=ctx.cancelled,
+                    timeout_s=SCENE_GEN_WAIT_TIMEOUT_S,
                 )
             except GpuTaskFailed as exc:
                 note = (
@@ -392,7 +403,20 @@ async def stage_assemble(ctx: JobContext) -> None:
             inputs=image_inputs + audio_inputs + music_inputs,
             filter_complex=filter_complex,
             maps=["-map", f"[{subbed_label}]", "-map", f"[{final_audio_label}]"],
-            output_args=["-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest"],
+            # NOT -shortest: the video/audio filter graphs are already built
+            # to total_duration exactly (crossfade padding cancels out by
+            # construction - verified: sum of clip_render_duration() minus
+            # overlaps nets to sum(scene_durations) exactly). -shortest
+            # would silently truncate the WHOLE output to whichever stream
+            # is even a frame shorter due to zoompan's frame-count rounding,
+            # cutting off the tail of the narration - the opposite of this
+            # stage's own "audio always rules the timeline" design intent.
+            # An explicit -t bounds the encode to the known-correct length
+            # without ever truncating early on a harmless rounding blip.
+            output_args=[
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
+                "-t", f"{total_duration:.3f}",
+            ],
             output_path=str(raw_output.resolve()),
         )
 

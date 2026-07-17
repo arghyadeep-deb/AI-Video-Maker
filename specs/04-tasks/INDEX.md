@@ -27,6 +27,7 @@ One complete build — the order below is a dependency sequence, not a release p
 | [20a](./task-20a-gpu-worker.md) | RTX 5070 Ti worker: HD avatars + **generated-footage Mode B** (Wan/LTX per-scene clips) |
 | [21](./task-21-launch.md) | Polish, live matrix, ToS/licenses, launch |
 | [22](./task-22-local-hd-engines.md) | Local HD engines: SadTalker HD install + local portrait styler (R2 fallback) + Wan/LTX bake-off — all local, deploy last |
+| [23](./task-23-quality-and-ops.md) | Post-launch: ops hardening, Hinglish/CTA scripts, video-cutoff fix, HuggingFace-model quality initiative (in progress) |
 
 ## Dependency chain
 
@@ -49,6 +50,7 @@ One complete build — the order below is a dependency sequence, not a release p
 11,15,18,20 → 20a
 all-prior → 21
 20a,21 → 22 (post-launch: finish the deferred GPU engines locally, deploy last)
+22 → 23 (post-launch: quality fixes + ops hardening, ongoing)
 ```
 
 ## Suggested build order (one track)

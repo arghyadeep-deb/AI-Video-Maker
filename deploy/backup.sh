@@ -28,8 +28,16 @@ mkdir -p "$BACKUP_DIR"
 sqlite3 "$DB_PATH" ".backup '$SNAPSHOT_PATH'"
 gzip -f "$SNAPSHOT_PATH"
 
+# Off-VM copy is best-effort: an unconfigured/unreachable remote must not
+# fail the whole backup - the local snapshot above already succeeded, and
+# that's the more important half. `set -e` would otherwise abort the script
+# here (and skip local retention cleanup below) on the very first night
+# rclone isn't set up yet - found live 2026-07-16 when the remote had never
+# been configured at all and the service had been silently failing since.
 if command -v rclone >/dev/null 2>&1; then
-    rclone copy "$SNAPSHOT_PATH.gz" "$R2_REMOTE/db/" --quiet
+    if ! rclone copy "$SNAPSHOT_PATH.gz" "$R2_REMOTE/db/" --quiet; then
+        echo "[backup] rclone copy to $R2_REMOTE failed (remote not configured?) - snapshot kept locally only at $SNAPSHOT_PATH.gz" >&2
+    fi
 else
     echo "[backup] rclone not found - snapshot kept locally only at $SNAPSHOT_PATH.gz" >&2
 fi

@@ -46,21 +46,38 @@ def scene_count_bounds(duration_s: int) -> tuple[int, int]:
     )
 
 
+HINGLISH_NOTE = (
+    "IMPORTANT: this must read as casual, everyday Hinglish, the way Indian "
+    "influencers and reels actually talk - NOT textbook/formal/Sanskrit-derived "
+    "Hindi. Prefer the common English loanword over the formal Hindi word "
+    "whenever that's what a real speaker would actually say, e.g. write "
+    "'रूटीन' not 'दिनचर्या', 'शेड्यूल' not 'समय सारणी', 'टाइम' not 'समय' (when "
+    "casual), 'प्रोडक्टिव' not a formal Sanskrit equivalent, 'फोकस' not "
+    "'एकाग्रता'. Keep grammar/particles/connectors in Hindi (है, को, के लिए, "
+    "और, तो, but the content words - especially anything modern, technical, "
+    "or abstract - should default to the English loanword written in "
+    "Devanagari or Latin script as natural code-switching, not a rare/formal "
+    "Hindi translation. If in doubt between a common English word and an "
+    "obscure formal Hindi one, use the English word."
+)
+
+
 def build_prompt(description: str, language: str, duration_s: int) -> str:
     words = target_word_count(language, duration_s)
     min_scenes, max_scenes = scene_count_bounds(duration_s)
     language_name = LANGUAGE_NAMES[language]
     script_name = SCRIPT_NAMES[language]
+    hinglish_note = HINGLISH_NOTE if language == "hi" else "Never romanize, never mix in translation."
     return f"""You are a professional scriptwriter for short-form narrated video.
 
 Write a scene-segmented narration script for this video idea:
 \"\"\"{description}\"\"\"
 
 Rules (follow exactly):
-1. Write every "text" field entirely in {language_name}, using {script_name} script. Never romanize, never mix in translation.
+1. Write every "text" field in natural spoken {language_name}, using {script_name} script as the base. {hinglish_note}
 2. Target about {words} words total across all scenes ({duration_s} seconds at natural narration pace).
 3. Produce between {min_scenes} and {max_scenes} scenes; each scene is 8-15 seconds of narration (roughly one sentence group).
-4. The first scene is a hook; the last scene is an outro or call-to-action.
+4. The first scene is a hook; the last scene is always a closing call-to-action with two parts, in natural spoken language (not a robotic list): (a) invite the viewer to follow this account/channel for more content like this, and (b) invite them to DM for their own personalized reading/detail (e.g., a personalized astrology reading about them specifically, if the persona/topic fits that framing - adapt the exact wording to the content's own persona rather than repeating this verbatim).
 5. Within each scene's "text" field only, write all numbers as words in {language_name}, never as digits - this rule applies ONLY to narrated prose, never to the JSON structure itself (see field formats below).
 6. Never include emoji, markdown, or stage directions in "text" - it is read verbatim by text-to-speech.
 7. "visual_hint" is always in English regardless of narration language: 2-5 concrete, photographable keywords for a stock-image search describing that scene's visual.

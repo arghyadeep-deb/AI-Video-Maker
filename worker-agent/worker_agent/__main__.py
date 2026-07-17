@@ -19,8 +19,17 @@ def main() -> int:
     parser.add_argument("--no-tray", action="store_true", help="run headless")
     args = parser.parse_args()
 
+    # Headless launch (pythonw.exe, Scheduled Task at logon) has no console -
+    # stdout/stderr are discarded, not merely hidden, so basicConfig's default
+    # StreamHandler writes into the void. A FileHandler is the only way to
+    # see anything from this process once it's running silently in the
+    # background - found live 2026-07-16 while debugging a scene_gen
+    # fallback with zero visibility into what the agent actually did.
+    log_path = Path(__file__).resolve().parents[1] / "agent_run.log"
     logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        handlers=[logging.FileHandler(log_path, encoding="utf-8")],
     )
     log = logging.getLogger("worker_agent")
 
