@@ -61,9 +61,12 @@ export default function PrivacyPage() {
         <p>
           Selfies are sent to Google&apos;s Gemini API only for avatar styling. Script text is sent
           to Gemini for generation/improvement. Scene search terms (not your script or personal
-          data) are sent to Pexels/Pixabay for stock images. Narration audio passes through
-          Microsoft&apos;s edge-tts service as a base voice before any personal-voice conversion,
-          which happens locally on this project&apos;s own server. See{" "}
+          data) are sent to Pexels/Pixabay for stock images, and — when those have no good match —
+          to a public Hugging Face Space (FLUX.1-schnell) that generates a scene-matched image
+          instead. Some scenes similarly send their scene text to another public Hugging Face
+          Space (LTX-Video) to generate real motion clips instead of a static pan/zoom. Narration
+          audio passes through Microsoft&apos;s edge-tts service as a base voice before any
+          personal-voice conversion, which happens locally on this project&apos;s own server. See{" "}
           <Link href="/licenses" style={{ color: "var(--accent)" }}>Licenses & third-party terms</Link>{" "}
           for the full list.
         </p>

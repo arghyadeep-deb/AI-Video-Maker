@@ -259,13 +259,29 @@ async def swap_scene_image(
         _project_row, scenes = load_project_and_scenes(conn, project_id)
         scene = next(s for s in scenes if s.id == scene_id)
 
-        genai = mode_b.make_genai_image_engine(settings)
-        guards.guard(conn, "genai_image", settings.genai_image_daily_cap)
-        generated = await genai.search(scene.visual_hint, project["format"], per_page=1)
-        if not generated:
-            raise AppError("Image generation produced nothing", hint="Try again in a moment")
-        guards.increment_usage(conn, "genai_image")
-        chosen, engine_used, alternates = generated[0], "genai", []
+        # Same FLUX-first preference as the automatic sourcing chain
+        # (image_service.source_scene_image_with_alternates) - a manual
+        # re-roll should match what a fresh scene would get, not silently
+        # skip straight to the older Gemini fallback.
+        flux = mode_b.make_flux_engine(settings)
+        generated: list[ImageCandidate] = []
+        engine_used = "flux"
+        try:
+            guards.guard(conn, "flux_image", settings.flux_image_daily_cap)
+            generated = await flux.search(scene.visual_hint, project["format"], per_page=1)
+        except Exception:
+            generated = []
+        if generated:
+            guards.increment_usage(conn, "flux_image")
+        else:
+            genai = mode_b.make_genai_image_engine(settings)
+            guards.guard(conn, "genai_image", settings.genai_image_daily_cap)
+            generated = await genai.search(scene.visual_hint, project["format"], per_page=1)
+            if not generated:
+                raise AppError("Image generation produced nothing", hint="Try again in a moment")
+            guards.increment_usage(conn, "genai_image")
+            engine_used = "genai"
+        chosen, alternates = generated[0], []
     else:
         if not payload.source_id:
             raise AppError("Pick a candidate or request generate_new", hint="source_id or generate_new is required")

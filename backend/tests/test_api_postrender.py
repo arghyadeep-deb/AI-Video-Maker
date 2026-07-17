@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 
 from app.core.config import get_settings
 from app.main import create_app
+from app.models.image import ImageCandidate
 from tests.conftest import authenticate
 
 
@@ -225,25 +226,62 @@ def test_swap_image_requires_source_id_or_generate_new(client):
     assert resp.status_code == 400
 
 
-def test_swap_image_generate_new_uses_genai_engine(client, monkeypatch):
+class _StubImageEngine:
+    def __init__(self, source: str, source_id: str, image_bytes: bytes = b"\xff\xd8\xff\xe0-fresh"):
+        self._source = source
+        self._source_id = source_id
+        self._image_bytes = image_bytes
+        self.queries = []
+
+    async def search(self, query, orientation, per_page=1):
+        self.queries.append(query)
+        return [
+            ImageCandidate(
+                source=self._source, source_id=self._source_id, width=1080, height=1920,
+                image_bytes=self._image_bytes,
+            )
+        ]
+
+
+class _EmptyImageEngine:
+    async def search(self, query, orientation, per_page=1):
+        return []
+
+
+def test_swap_image_generate_new_prefers_flux_engine(client, monkeypatch):
     app, c = client
     project = _accepted_project(c, app)
     settings = get_settings()
     _seed_rendered_mode_b_project(app, c, project, settings)
 
-    from app.models.image import ImageCandidate
     from app.pipelines import mode_b
 
-    class StubGenai:
-        async def search(self, query, orientation, per_page=1):
-            return [
-                ImageCandidate(
-                    source="genai", source_id="fresh-genai", width=1080, height=1920,
-                    image_bytes=b"\xff\xd8\xff\xe0-fresh",
-                )
-            ]
+    flux = _StubImageEngine("flux", "fresh-flux")
+    monkeypatch.setattr(mode_b, "make_flux_engine", lambda settings: flux)
 
-    monkeypatch.setattr(mode_b, "make_genai_image_engine", lambda settings: StubGenai())
+    resp = c.post(f"/api/projects/{project['id']}/scenes/1/image", json={"generate_new": True})
+    assert resp.status_code == 201, resp.text
+
+    row = json.loads(
+        sqlite3.connect(settings.db_path).execute(
+            "SELECT meta_json FROM media_assets WHERE project_id = ? AND scene_id = 1", (project["id"],)
+        ).fetchone()[0]
+    )
+    assert row["source_id"] == "fresh-flux"
+    assert row["source"] == "flux"
+
+
+def test_swap_image_generate_new_falls_back_to_genai_when_flux_empty(client, monkeypatch):
+    app, c = client
+    project = _accepted_project(c, app)
+    settings = get_settings()
+    _seed_rendered_mode_b_project(app, c, project, settings)
+
+    from app.pipelines import mode_b
+
+    monkeypatch.setattr(mode_b, "make_flux_engine", lambda settings: _EmptyImageEngine())
+    genai = _StubImageEngine("genai", "fresh-genai")
+    monkeypatch.setattr(mode_b, "make_genai_image_engine", lambda settings: genai)
 
     resp = c.post(f"/api/projects/{project['id']}/scenes/1/image", json={"generate_new": True})
     assert resp.status_code == 201, resp.text
@@ -254,6 +292,33 @@ def test_swap_image_generate_new_uses_genai_engine(client, monkeypatch):
         ).fetchone()[0]
     )
     assert row["source_id"] == "fresh-genai"
+
+
+def test_swap_image_generate_new_falls_back_to_genai_when_flux_raises(client, monkeypatch):
+    app, c = client
+    project = _accepted_project(c, app)
+    settings = get_settings()
+    _seed_rendered_mode_b_project(app, c, project, settings)
+
+    from app.pipelines import mode_b
+
+    class _RaisingEngine:
+        async def search(self, query, orientation, per_page=1):
+            raise RuntimeError("Space unavailable")
+
+    monkeypatch.setattr(mode_b, "make_flux_engine", lambda settings: _RaisingEngine())
+    genai = _StubImageEngine("genai", "fresh-genai-2")
+    monkeypatch.setattr(mode_b, "make_genai_image_engine", lambda settings: genai)
+
+    resp = c.post(f"/api/projects/{project['id']}/scenes/1/image", json={"generate_new": True})
+    assert resp.status_code == 201, resp.text
+
+    row = json.loads(
+        sqlite3.connect(settings.db_path).execute(
+            "SELECT meta_json FROM media_assets WHERE project_id = ? AND scene_id = 1", (project["id"],)
+        ).fetchone()[0]
+    )
+    assert row["source_id"] == "fresh-genai-2"
 
 
 # --- POST scene rerender -----------------------------------------------------

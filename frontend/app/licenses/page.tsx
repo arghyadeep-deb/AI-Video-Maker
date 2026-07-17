@@ -100,10 +100,25 @@ export default function LicensesPage() {
 
       <Section title="Stock images">
         <p>
-          Pexels and Pixabay, used under their respective free API terms. Photographer and source
-          are recorded per image and included in every download&apos;s <code>credits.txt</code>.
-          Images with no usable stock result fall back to Gemini-generated images, labeled as
-          AI-generated in the same credits file.
+          <strong>FLUX.1-schnell</strong> (Apache License 2.0) generates a scene-matched image for
+          each scene first, called via its creator&apos;s own public Hugging Face Space rather than
+          a paid API — their infrastructure, genuinely free to call. Photographer and source are
+          recorded per image and included in every download&apos;s <code>credits.txt</code>; FLUX
+          results are labeled AI-generated (FLUX.1-schnell) in the same file. Images falling back
+          to a real photo use Pexels or Pixabay, under their respective free API terms. If neither
+          produces a usable result, a Gemini-generated image is used instead, also labeled
+          AI-generated.
+        </p>
+      </Section>
+
+      <Section title="Generated footage">
+        <p>
+          <strong>LTX-Video</strong> (Lightricks&apos; own custom Open Weights License, not
+          Apache/MIT/OpenRAIL) animates a scene&apos;s image into a short motion clip, called via
+          its creator&apos;s own public Hugging Face Space (same pattern as FLUX above) rather than
+          a self-hosted copy. Scenes it can&apos;t reach fall
+          back to the home GPU worker, then to a Ken Burns pan/zoom of the still image — each tier
+          is recorded per scene in <code>credits.txt</code>.
         </p>
       </Section>
 
