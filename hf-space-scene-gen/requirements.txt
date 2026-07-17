@@ -1,0 +1,11 @@
+spaces
+gradio>=4.0
+torch
+torchvision
+diffusers
+transformers
+accelerate
+sentencepiece
+protobuf
+imageio
+imageio-ffmpeg
