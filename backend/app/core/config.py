@@ -61,6 +61,12 @@ class Settings(BaseSettings):
     # these caps are safety rails set well above that, not rationing.
     gemini_text_daily_cap: int = 700
     genai_image_daily_cap: int = 200
+    # task-23: FLUX.1-schnell via its own public HF Space (not the paid
+    # Inference Providers route - confirmed live that FLUX has no genuine
+    # free provider there at all, only third-party paid ones). A safety
+    # rail against hammering someone else's shared free infrastructure,
+    # same rationale as genai_image_daily_cap, not a measured HF-side limit.
+    flux_image_daily_cap: int = 200
     # specs/04-tasks/task-15-quotas-fairness.md's degradation table: "LLM
     # cap near -> block new scripts before improvements (in-flight work is
     # sacred)". New-script generation stops this many calls earlier than

@@ -54,44 +54,118 @@ def conn(tmp_path):
 
 
 class TestFallbackChain:
-    async def test_pexels_hit_stops_the_chain(self, conn):
+    async def test_flux_hit_stops_the_chain(self, conn):
+        """task-23: FLUX is now the first tier, ahead of stock photos."""
+        flux = StubEngine("flux", [_candidate("flux", "f1")])
         pexels = StubEngine("pexels", [_candidate("pexels", "p1")])
         pixabay = StubEngine("pixabay")
         genai = StubEngine("genai")
 
-        chosen, engine_used = await source_scene_image(conn, _scene(), "9x16", set(), pexels, pixabay, genai)
+        chosen, engine_used = await source_scene_image(
+            conn, _scene(), "9x16", set(), flux, pexels, pixabay, genai
+        )
+
+        assert engine_used == "flux"
+        assert chosen.source_id == "f1"
+        assert pexels.queries == []  # never consulted
+
+    async def test_flux_empty_falls_to_pexels(self, conn):
+        flux = StubEngine("flux", [])
+        pexels = StubEngine("pexels", [_candidate("pexels", "p1")])
+        pixabay = StubEngine("pixabay")
+        genai = StubEngine("genai")
+
+        chosen, engine_used = await source_scene_image(
+            conn, _scene(), "9x16", set(), flux, pexels, pixabay, genai
+        )
+
+        assert engine_used == "pexels"
+        assert chosen.source_id == "p1"
+
+    async def test_flux_exception_falls_through_to_pexels(self, conn):
+        class BoomEngine:
+            async def search(self, *a, **kw):
+                raise RuntimeError("HF API is down")
+
+        pexels = StubEngine("pexels", [_candidate("pexels", "p1")])
+        pixabay = StubEngine("pixabay")
+        genai = StubEngine("genai")
+
+        chosen, engine_used = await source_scene_image(
+            conn, _scene(), "9x16", set(), BoomEngine(), pexels, pixabay, genai
+        )
+        assert engine_used == "pexels"
+
+    async def test_flux_cap_falls_through_to_pexels_without_erroring(self, conn, monkeypatch):
+        """A FLUX quota cap already hit must degrade to stock photos like
+        any other FLUX failure, never abort the whole scene."""
+        from app.core.config import get_settings
+        from app.quota import guards
+
+        monkeypatch.setattr(get_settings(), "flux_image_daily_cap", 1)
+        guards.increment_usage(conn, "flux_image", n=1)
+
+        flux = StubEngine("flux", [_candidate("flux", "f1")])
+        pexels = StubEngine("pexels", [_candidate("pexels", "p1")])
+        pixabay = StubEngine("pixabay")
+        genai = StubEngine("genai")
+
+        chosen, engine_used = await source_scene_image(
+            conn, _scene(), "9x16", set(), flux, pexels, pixabay, genai
+        )
+        assert engine_used == "pexels"
+        assert flux.queries == []  # cap hit before FLUX was ever called
+
+    async def test_pexels_hit_stops_the_chain(self, conn):
+        flux = StubEngine("flux")
+        pexels = StubEngine("pexels", [_candidate("pexels", "p1")])
+        pixabay = StubEngine("pixabay")
+        genai = StubEngine("genai")
+
+        chosen, engine_used = await source_scene_image(
+            conn, _scene(), "9x16", set(), flux, pexels, pixabay, genai
+        )
 
         assert engine_used == "pexels"
         assert chosen.source_id == "p1"
         assert pixabay.queries == []  # never consulted
 
     async def test_pexels_empty_falls_to_pixabay(self, conn):
+        flux = StubEngine("flux")
         pexels = StubEngine("pexels", [])
         pixabay = StubEngine("pixabay", [_candidate("pixabay", "px1")])
         genai = StubEngine("genai")
 
-        chosen, engine_used = await source_scene_image(conn, _scene(), "9x16", set(), pexels, pixabay, genai)
+        chosen, engine_used = await source_scene_image(
+            conn, _scene(), "9x16", set(), flux, pexels, pixabay, genai
+        )
 
         assert engine_used == "pixabay"
         assert chosen.source_id == "px1"
         assert pexels.queries == [_scene().visual_hint]
 
     async def test_both_stocks_empty_falls_to_genai(self, conn):
+        flux = StubEngine("flux")
         pexels = StubEngine("pexels", [])
         pixabay = StubEngine("pixabay", [])
         genai = StubEngine("genai", [_candidate("genai", "g1")])
 
-        chosen, engine_used = await source_scene_image(conn, _scene(), "9x16", set(), pexels, pixabay, genai)
+        chosen, engine_used = await source_scene_image(
+            conn, _scene(), "9x16", set(), flux, pexels, pixabay, genai
+        )
 
         assert engine_used == "genai"
         assert chosen.source_id == "g1"
 
     async def test_low_resolution_candidates_are_treated_as_no_hit(self, conn):
+        flux = StubEngine("flux")
         pexels = StubEngine("pexels", [_candidate("pexels", "small", w=400, h=600)])
         pixabay = StubEngine("pixabay", [_candidate("pixabay", "big", w=1920, h=1200)])
         genai = StubEngine("genai")
 
-        chosen, engine_used = await source_scene_image(conn, _scene(), "9x16", set(), pexels, pixabay, genai)
+        chosen, engine_used = await source_scene_image(
+            conn, _scene(), "9x16", set(), flux, pexels, pixabay, genai
+        )
         assert engine_used == "pixabay"
 
     async def test_provider_exception_falls_through_to_next(self, conn):
@@ -99,19 +173,23 @@ class TestFallbackChain:
             async def search(self, *a, **kw):
                 raise RuntimeError("provider is down")
 
+        flux = StubEngine("flux")
         pixabay = StubEngine("pixabay", [_candidate("pixabay", "px1")])
         genai = StubEngine("genai")
 
-        chosen, engine_used = await source_scene_image(conn, _scene(), "9x16", set(), BoomEngine(), pixabay, genai)
+        chosen, engine_used = await source_scene_image(
+            conn, _scene(), "9x16", set(), flux, BoomEngine(), pixabay, genai
+        )
         assert engine_used == "pixabay"
 
     async def test_genai_producing_nothing_raises(self, conn):
+        flux = StubEngine("flux")
         pexels = StubEngine("pexels", [])
         pixabay = StubEngine("pixabay", [])
         genai = StubEngine("genai", [])
 
         with pytest.raises(ImageSourcingError):
-            await source_scene_image(conn, _scene(), "9x16", set(), pexels, pixabay, genai)
+            await source_scene_image(conn, _scene(), "9x16", set(), flux, pexels, pixabay, genai)
 
     async def test_genai_cap_blocks_the_fallback_without_touching_stock_attempts(self, conn, monkeypatch):
         """specs/04-tasks/task-15-quotas-fairness.md: only the genai
@@ -124,19 +202,24 @@ class TestFallbackChain:
         monkeypatch.setattr(get_settings(), "genai_image_daily_cap", 1)
         guards.increment_usage(conn, "genai_image", n=1)
 
+        flux = StubEngine("flux")
         pexels = StubEngine("pexels", [_candidate("pexels", "p1")])
         pixabay = StubEngine("pixabay")
         genai = StubEngine("genai", [_candidate("genai", "g1")])
 
         # Stock hit still works fine even with the genai cap exhausted.
-        chosen, engine_used = await source_scene_image(conn, _scene(), "9x16", set(), pexels, pixabay, genai)
+        chosen, engine_used = await source_scene_image(
+            conn, _scene(), "9x16", set(), flux, pexels, pixabay, genai
+        )
         assert engine_used == "pexels"
 
         # But actually needing the genai fallback is blocked.
         pexels_empty = StubEngine("pexels", [])
         pixabay_empty = StubEngine("pixabay", [])
         with pytest.raises(QuotaExhaustedError):
-            await source_scene_image(conn, _scene(), "9x16", set(), pexels_empty, pixabay_empty, genai)
+            await source_scene_image(
+                conn, _scene(), "9x16", set(), flux, pexels_empty, pixabay_empty, genai
+            )
 
 
 class TestAlternatesForSwapPicker:
@@ -145,6 +228,7 @@ class TestAlternatesForSwapPicker:
     "the 5 scored candidates are cached for exactly this"."""
 
     async def test_stock_hit_returns_other_usable_candidates_as_alternates(self, conn):
+        flux = StubEngine("flux")
         pexels = StubEngine(
             "pexels",
             [_candidate("pexels", "p1"), _candidate("pexels", "p2"), _candidate("pexels", "p3")],
@@ -153,7 +237,7 @@ class TestAlternatesForSwapPicker:
         genai = StubEngine("genai")
 
         chosen, engine_used, alternates = await source_scene_image_with_alternates(
-            conn, _scene(), "9x16", set(), pexels, pixabay, genai
+            conn, _scene(), "9x16", set(), flux, pexels, pixabay, genai
         )
 
         assert engine_used == "pexels"
@@ -161,7 +245,20 @@ class TestAlternatesForSwapPicker:
         assert chosen.source_id not in alt_ids
         assert alt_ids == {"p1", "p2", "p3"} - {chosen.source_id}
 
+    async def test_flux_hit_has_no_alternates(self, conn):
+        flux = StubEngine("flux", [_candidate("flux", "f1")])
+        pexels = StubEngine("pexels")
+        pixabay = StubEngine("pixabay")
+        genai = StubEngine("genai")
+
+        _, engine_used, alternates = await source_scene_image_with_alternates(
+            conn, _scene(), "9x16", set(), flux, pexels, pixabay, genai
+        )
+        assert engine_used == "flux"
+        assert alternates == []
+
     async def test_low_resolution_candidates_never_become_alternates(self, conn):
+        flux = StubEngine("flux")
         pexels = StubEngine(
             "pexels",
             [_candidate("pexels", "big", w=1920, h=1200), _candidate("pexels", "small", w=400, h=600)],
@@ -170,17 +267,18 @@ class TestAlternatesForSwapPicker:
         genai = StubEngine("genai")
 
         _, _, alternates = await source_scene_image_with_alternates(
-            conn, _scene(), "9x16", set(), pexels, pixabay, genai
+            conn, _scene(), "9x16", set(), flux, pexels, pixabay, genai
         )
         assert all(c.source_id != "small" for c in alternates)
 
     async def test_genai_fallback_has_no_alternates(self, conn):
+        flux = StubEngine("flux")
         pexels = StubEngine("pexels", [])
         pixabay = StubEngine("pixabay", [])
         genai = StubEngine("genai", [_candidate("genai", "g1")])
 
         _, engine_used, alternates = await source_scene_image_with_alternates(
-            conn, _scene(), "9x16", set(), pexels, pixabay, genai
+            conn, _scene(), "9x16", set(), flux, pexels, pixabay, genai
         )
         assert engine_used == "genai"
         assert alternates == []
@@ -189,11 +287,12 @@ class TestAlternatesForSwapPicker:
         """Existing callers (and 15 pre-existing tests in this file) rely on
         this exact signature - the alternates-returning variant is additive,
         not a breaking change."""
+        flux = StubEngine("flux")
         pexels = StubEngine("pexels", [_candidate("pexels", "p1")])
         pixabay = StubEngine("pixabay")
         genai = StubEngine("genai")
 
-        result = await source_scene_image(conn, _scene(), "9x16", set(), pexels, pixabay, genai)
+        result = await source_scene_image(conn, _scene(), "9x16", set(), flux, pexels, pixabay, genai)
         assert len(result) == 2
 
 
@@ -209,6 +308,7 @@ class TestProjectSourcingAndCaching:
         )
         conn.commit()
 
+        flux = StubEngine("flux")
         pexels = StubEngine(
             "pexels", [_candidate("pexels", "p1"), _candidate("pexels", "p2"), _candidate("pexels", "p3")]
         )
@@ -216,7 +316,7 @@ class TestProjectSourcingAndCaching:
         genai = StubEngine("genai")
 
         rows = await source_project_images(
-            conn, "p1", [_scene(1)], "9x16", tmp_path / "images", pexels, pixabay, genai
+            conn, "p1", [_scene(1)], "9x16", tmp_path / "images", flux, pexels, pixabay, genai
         )
         meta = json.loads(rows[0]["meta_json"])
         alt_ids = {a["source_id"] for a in meta["alternates"]}
@@ -236,6 +336,7 @@ class TestProjectSourcingAndCaching:
         )
         conn.commit()
 
+        flux = StubEngine("flux")
         pexels = StubEngine("pexels", [_candidate("pexels", "p1")])
         pexels_candidate = pexels._candidates[0]
         pexels_candidate.photographer = "Jane Doe"
@@ -244,7 +345,7 @@ class TestProjectSourcingAndCaching:
 
         images_dir = tmp_path / "images"
         rows = await source_project_images(
-            conn, "p1", [_scene(1)], "9x16", images_dir, pexels, pixabay, genai
+            conn, "p1", [_scene(1)], "9x16", images_dir, flux, pexels, pixabay, genai
         )
 
         assert len(rows) == 1
@@ -265,16 +366,21 @@ class TestProjectSourcingAndCaching:
         )
         conn.commit()
 
+        flux = StubEngine("flux")
         pexels = StubEngine("pexels", [_candidate("pexels", "p1")])
         pixabay = StubEngine("pixabay")
         genai = StubEngine("genai")
         images_dir = tmp_path / "images"
 
-        await source_project_images(conn, "p1", [_scene(1)], "9x16", images_dir, pexels, pixabay, genai)
+        await source_project_images(
+            conn, "p1", [_scene(1)], "9x16", images_dir, flux, pexels, pixabay, genai
+        )
         assert len(pexels.queries) == 1
 
         # Second run, same non-stale scene: no engine should be queried again.
-        await source_project_images(conn, "p1", [_scene(1)], "9x16", images_dir, pexels, pixabay, genai)
+        await source_project_images(
+            conn, "p1", [_scene(1)], "9x16", images_dir, flux, pexels, pixabay, genai
+        )
         assert len(pexels.queries) == 1  # unchanged - cache hit, no new call
         conn.close()
 
@@ -289,16 +395,19 @@ class TestProjectSourcingAndCaching:
         )
         conn.commit()
 
+        flux = StubEngine("flux")
         pexels = StubEngine("pexels", [_candidate("pexels", "p1")])
         pixabay = StubEngine("pixabay")
         genai = StubEngine("genai")
         images_dir = tmp_path / "images"
 
-        await source_project_images(conn, "p1", [_scene(1)], "9x16", images_dir, pexels, pixabay, genai)
+        await source_project_images(
+            conn, "p1", [_scene(1)], "9x16", images_dir, flux, pexels, pixabay, genai
+        )
         assert len(pexels.queries) == 1
 
         await source_project_images(
-            conn, "p1", [_scene(1, stale=True)], "9x16", images_dir, pexels, pixabay, genai
+            conn, "p1", [_scene(1, stale=True)], "9x16", images_dir, flux, pexels, pixabay, genai
         )
         assert len(pexels.queries) == 2  # stale -> re-sourced despite existing row
         conn.close()

@@ -85,12 +85,13 @@ async def stage_scene_image(ctx: JobContext) -> None:
                 already_used.add(meta["source_id"])
 
         images_dir = project_dir(settings.media_root, project["user_id"], project_id) / "images"
+        flux = mode_b.make_flux_engine(settings)
         pexels = mode_b.make_pexels_engine(settings)
         pixabay = mode_b.make_pixabay_engine(settings)
         genai = mode_b.make_genai_image_engine(settings)
 
         candidate, engine_used, alternates = await image_service.source_scene_image_with_alternates(
-            conn, scene, project["format"], already_used, pexels, pixabay, genai
+            conn, scene, project["format"], already_used, flux, pexels, pixabay, genai
         )
         out_path = images_dir / f"scene-{scene.id}.jpg"
         await image_service.download_candidate(candidate, out_path)

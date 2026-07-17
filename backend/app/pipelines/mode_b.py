@@ -33,6 +33,7 @@ from app.engines.ffmpeg.kenburns import (
     total_timeline_duration_s,
 )
 from app.engines.ffmpeg.progress import FFmpegError, run_with_progress
+from app.engines.images.flux import FluxImages
 from app.engines.images.genai_fallback import GenaiFallbackImages
 from app.engines.images.pexels import PexelsImages
 from app.engines.images.pixabay import PixabayImages
@@ -85,6 +86,10 @@ def make_tts_engine():
     registry.Pipeline `(stage_name, coroutine)` shape.
     """
     return EdgeTTSEngine()
+
+
+def make_flux_engine(settings):
+    return FluxImages(hf_token=settings.hf_token)
 
 
 def make_pexels_engine(settings):
@@ -143,12 +148,13 @@ async def stage_images(ctx: JobContext) -> None:
             scenes = await image_service.refresh_stale_hints(llm, scenes)
 
         images_dir = _project_dir(settings.media_root, project["user_id"], project_id) / "images"
+        flux = make_flux_engine(settings)
         pexels = make_pexels_engine(settings)
         pixabay = make_pixabay_engine(settings)
         genai = make_genai_image_engine(settings)
 
         await image_service.source_project_images(
-            conn, project_id, scenes, project["format"], images_dir, pexels, pixabay, genai
+            conn, project_id, scenes, project["format"], images_dir, flux, pexels, pixabay, genai
         )
         ctx.report(100)
     finally:
@@ -534,6 +540,8 @@ def _write_credits(conn, project_id: str, project_dir: Path) -> None:
         meta = json.loads(row["meta_json"] or "{}")
         if meta.get("engine") == "genai":
             lines.append(f"Scene {row['scene_id']}: AI-generated (Gemini 2.5 Flash Image)")
+        elif meta.get("engine") == "flux":
+            lines.append(f"Scene {row['scene_id']}: AI-generated (FLUX.1-schnell)")
         else:
             photographer = meta.get("photographer") or "Unknown"
             source = meta.get("source", "unknown")
