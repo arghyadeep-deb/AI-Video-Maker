@@ -131,6 +131,23 @@ def test_create_render_job_persists_the_requested_stock_voice(client):
     assert updated["voice"] == "hi-IN-MadhurNeural"
 
 
+def test_create_render_job_accepts_footage_level_with_no_worker_online(client):
+    """task-23: the old upfront gate rejected visual_level="footage" unless
+    the home GPU worker was online, predating stage_footage's own public-
+    Space tier (backend/app/engines/scene_gen/ltx_public.py) which has no
+    such precondition - the request must be accepted regardless of worker
+    state now; the pipeline's own per-scene fallback chain handles honest
+    degradation if every tier fails, not an upfront rejection."""
+    app, c = client
+    project = _accepted_project(c, app)  # no worker ever registered in this test
+
+    resp = c.post(
+        f"/api/projects/{project['id']}/video",
+        json={"mode": "b", "visual_level": "footage"},
+    )
+    assert resp.status_code == 201
+
+
 def test_create_render_job_rejects_a_voice_not_in_the_projects_language(client):
     app, c = client
     project = _accepted_project(c, app)  # language="hi"

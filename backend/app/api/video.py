@@ -31,7 +31,7 @@ from app.models.postrender import (
 )
 from app.models.video import VideoRequest
 from app.pipelines.common import load_project_and_scenes, project_dir as _project_dir
-from app.quota import guards, tier
+from app.quota import guards
 from app.services import image_service
 from app.services.job_repo import row_to_job as _row_to_job
 from app.services.project_repo import effective_status
@@ -106,18 +106,14 @@ def create_render_job(
             "UPDATE projects SET status = 'generating', mode = 'a' WHERE id = ?", (project_id,)
         )
     else:
-        if payload.visual_level == "footage":
-            # specs/01-requirements/05-mode-b-image-video.md: "Generated
-            # footage is only offered while the GPU worker is online" -
-            # honest rejection up front; a worker lost *mid-render* instead
-            # degrades per-scene inside the pipeline.
-            state = tier.compute_tier_state(conn, get_settings())
-            if "scene_gen" not in state.worker_capabilities:
-                raise AppError(
-                    "Generated footage isn't available right now",
-                    hint="The GPU machine is offline - Photo level is available, "
-                    "or try again when the badge says 'Generated footage available'",
-                )
+        # No upfront availability gate for visual_level="footage" anymore
+        # (task-23): the old assumption - "only offered while the GPU worker
+        # is online" - predates stage_footage's own public-Space tier
+        # (backend/app/engines/scene_gen/ltx_public.py), which has no
+        # availability precondition of its own. The pipeline's existing
+        # per-scene fallback chain (public Space -> home worker -> Ken
+        # Burns) already degrades honestly if every tier fails; rejecting
+        # the request up front here would just be stale and wrong now.
         job_id = job_queue.enqueue(
             conn, user_id, project_id, "render_mode_b",
             {

@@ -89,12 +89,27 @@ SCENES = [
 ]
 
 
+class _FakePublicLTXUnavailable:
+    """Default test double for LTXPublicSpaceEngine: simulates the public
+    Space being unreachable, so pre-existing tests exercise the exact same
+    home-worker/Ken-Burns fallback behavior they always did - task-23's
+    interim public-Space tier only prepends a new first attempt, it
+    doesn't change what happens once that attempt fails."""
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    async def render(self, image_path, prompt, duration_s, width, height, output_path):
+        raise mode_b.LTXPublicSpaceError("simulated: public Space unavailable in tests")
+
+
 @pytest.fixture
 def footage_env(monkeypatch, tmp_path):
     monkeypatch.setenv("DB_PATH", str(tmp_path / "app.db"))
     monkeypatch.setenv("MEDIA_ROOT", str(tmp_path / "media"))
     # Instant lease expiry bookkeeping for the worker-lost test.
     monkeypatch.setenv("WORKER_TASK_MAX_ATTEMPTS", "1")
+    monkeypatch.setattr(mode_b, "LTXPublicSpaceEngine", _FakePublicLTXUnavailable)
     get_settings.cache_clear()
     settings = get_settings()
     run_migrations(settings.db_path)
@@ -130,23 +145,36 @@ def test_photo_level_is_a_noop_that_clears_stale_clips(footage_env):
 
 
 def test_footage_with_no_worker_online_degrades_honestly(footage_env):
+    """Both tiers unavailable (fake public Space fails, no worker online) -
+    remaining scenes fall all the way back to photo motion, honestly."""
     conn, settings, images_dir = footage_env
     asyncio.run(
         mode_b.stage_footage(_job_context({"project_id": "p1", "visual_level": "footage"}))
     )
     assert "0/2 scenes generated" in _engine_notes(conn)
-    assert "offline" in _engine_notes(conn)
+    assert "unavailable" in _engine_notes(conn)
 
 
 def _fake_agent(db_path, settings, handler, cycles=50):
     """A fake worker thread speaking the router's own lease protocol:
-    `handler(task_row, conn) -> bytes | Exception` per leased task."""
+    `handler(task_row, conn) -> bytes | Exception` per leased task.
+
+    Blocks until the first poll cycle actually lands before returning - a
+    genuine, pre-existing race otherwise (the thread starts but the caller's
+    very next `worker_capabilities()` check can run before this thread's
+    first `record_worker_poll` does, reading a stale "offline" state).
+    Always present, just usually won this race by luck; task-23's extra
+    await point ahead of the worker check (the new public-Space attempt)
+    shifted the timing enough to lose it reliably instead of sometimes."""
+    first_poll_done = threading.Event()
 
     def loop():
-        for _ in range(cycles):
+        for i in range(cycles):
             conn = get_connection(db_path)
             try:
                 gpu_router.record_worker_poll(conn, ["scene_gen"], 15000)
+                if i == 0:
+                    first_poll_done.set()
                 row = gpu_router.lease_next_task(conn, ["scene_gen"], settings)
                 if row is not None:
                     outcome = handler(row, conn)
@@ -163,6 +191,7 @@ def _fake_agent(db_path, settings, handler, cycles=50):
 
     thread = threading.Thread(target=loop, daemon=True)
     thread.start()
+    first_poll_done.wait(timeout=2.0)
     return thread
 
 
@@ -188,6 +217,50 @@ def test_footage_generates_a_clip_per_scene(footage_env):
     ).fetchall()
     assert [r["scene_id"] for r in rows] == [1, 2]
     assert _engine_notes(conn) == "footage: 2/2 scenes generated"
+
+
+class _FakePublicLTXSucceeds:
+    """Simulates the public Space working - records every call so the test
+    can assert it was actually used, and that the home worker never got
+    touched (no gpu_task should ever be submitted when this tier succeeds)."""
+
+    def __init__(self, *args, **kwargs):
+        self.calls: list[str] = []
+
+    async def render(self, image_path, prompt, duration_s, width, height, output_path):
+        self.calls.append(prompt)
+        assert duration_s == mode_b.FOOTAGE_CLIP_SECONDS
+        assert width == 1080 and height == 1920
+        Path(output_path).write_bytes(f"public-clip-for-{prompt}".encode())
+        return Path(output_path)
+
+
+def test_public_ltx_space_used_when_available(footage_env, monkeypatch):
+    """task-23's interim tier: the public LTX Space is tried first and, when
+    it succeeds, the home worker is never even consulted."""
+    conn, settings, images_dir = footage_env
+    fake_instances: list[_FakePublicLTXSucceeds] = []
+
+    def factory(*args, **kwargs):
+        instance = _FakePublicLTXSucceeds(*args, **kwargs)
+        fake_instances.append(instance)
+        return instance
+
+    monkeypatch.setattr(mode_b, "LTXPublicSpaceEngine", factory)
+
+    asyncio.run(
+        mode_b.stage_footage(_job_context({"project_id": "p1", "visual_level": "footage"}))
+    )
+
+    assert (images_dir / "scene-1.mp4").read_bytes() == b"public-clip-for-sunrise over hills"
+    assert (images_dir / "scene-2.mp4").read_bytes() == b"public-clip-for-city street at night"
+    assert fake_instances[0].calls == ["sunrise over hills", "city street at night"]
+    assert conn.execute("SELECT COUNT(*) FROM gpu_tasks").fetchone()[0] == 0  # worker never touched
+    assert _engine_notes(conn) == "footage: 2/2 scenes generated"
+    rows = conn.execute(
+        "SELECT meta_json FROM media_assets WHERE project_id = 'p1' AND kind = 'clip' ORDER BY scene_id"
+    ).fetchall()
+    assert json.loads(rows[0]["meta_json"])["engine"] == "ltx_public"
 
 
 def test_worker_lost_mid_render_keeps_partial_clips_and_says_so(footage_env):

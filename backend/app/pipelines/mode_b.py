@@ -36,6 +36,7 @@ from app.engines.ffmpeg.progress import FFmpegError, run_with_progress
 from app.engines.images.genai_fallback import GenaiFallbackImages
 from app.engines.images.pexels import PexelsImages
 from app.engines.images.pixabay import PixabayImages
+from app.engines.scene_gen.ltx_public import LTXPublicSpaceEngine, LTXPublicSpaceError
 from app.engines.script_llm import make_script_llm
 from app.engines.tts.base import WordTiming
 from app.engines.tts.edge import EdgeTTSEngine
@@ -226,10 +227,15 @@ def delete_scene_clip(conn, project_id: str, scene_id: int) -> None:
 
 
 async def stage_footage(ctx: JobContext) -> None:
-    """Generated-footage level (task-20a): one AI motion clip per scene via
-    the home GPU worker's scene_gen engine. A worker lost mid-render is a
-    normal event, not a failure: remaining scenes keep Ken Burns and the
-    honest note lands in jobs.engine_notes ("honest note in the result" -
+    """Generated-footage level (task-20a, revised task-23): one AI motion
+    clip per scene. Two tiers, tried in order per scene: Lightricks' public
+    LTX-Video ZeroGPU Space (fast and reliable - spike-tested at 16.6s live,
+    see task-23-quality-and-ops.md - used as an interim stand-in for our own
+    hf-space-scene-gen/ until that can be hosted, 2026-08-16 or a
+    community-grant approval), then the home GPU worker's scene_gen engine.
+    Either tier failing for a scene is a normal event, not an error:
+    remaining scenes keep Ken Burns and an honest note lands in
+    jobs.engine_notes ("honest note in the result" -
     specs/01-requirements/05-mode-b-image-video.md).
     """
     settings = get_settings()
@@ -252,43 +258,54 @@ async def stage_footage(ctx: JobContext) -> None:
 
         note = None
         generated = 0
+        public_ltx = LTXPublicSpaceEngine()
         for i, scene in enumerate(scenes):
             if ctx.cancelled():
                 return
-            if "scene_gen" not in gpu_router.worker_capabilities(conn, settings):
-                note = (
-                    f"footage: {generated}/{len(scenes)} scenes generated - "
-                    "GPU worker went offline, remaining scenes use photo motion"
-                )
-                break
             image_path = images_dir / f"scene-{scene.id}.jpg"
             clip_path = images_dir / f"scene-{scene.id}.mp4"
-            task_id = gpu_router.submit_task(
-                conn,
-                "scene_gen",
-                {
-                    "prompt": scene.visual_hint,
-                    "duration_s": FOOTAGE_CLIP_SECONDS,
-                    "width": width,
-                    "height": height,
-                },
-                [{"name": "scene.jpg", "path": str(image_path)}],
-            )
+            engine_used = None
+
             try:
-                row = await gpu_router.wait_for_task(
-                    settings.db_path, task_id, settings, cancelled=ctx.cancelled,
-                    timeout_s=SCENE_GEN_WAIT_TIMEOUT_S,
+                await public_ltx.render(
+                    str(image_path), scene.visual_hint, FOOTAGE_CLIP_SECONDS, width, height, str(clip_path)
                 )
-            except GpuTaskFailed as exc:
-                note = (
-                    f"footage: {generated}/{len(scenes)} scenes generated - "
-                    f"GPU worker lost ({exc}), remaining scenes use photo motion"
+                engine_used = "ltx_public"
+            except LTXPublicSpaceError:
+                if "scene_gen" not in gpu_router.worker_capabilities(conn, settings):
+                    note = (
+                        f"footage: {generated}/{len(scenes)} scenes generated - "
+                        "generation unavailable, remaining scenes use photo motion"
+                    )
+                    break
+                task_id = gpu_router.submit_task(
+                    conn,
+                    "scene_gen",
+                    {
+                        "prompt": scene.visual_hint,
+                        "duration_s": FOOTAGE_CLIP_SECONDS,
+                        "width": width,
+                        "height": height,
+                    },
+                    [{"name": "scene.jpg", "path": str(image_path)}],
                 )
-                break
-            shutil.copyfile(row["result_path"], clip_path)
+                try:
+                    row = await gpu_router.wait_for_task(
+                        settings.db_path, task_id, settings, cancelled=ctx.cancelled,
+                        timeout_s=SCENE_GEN_WAIT_TIMEOUT_S,
+                    )
+                except GpuTaskFailed as exc:
+                    note = (
+                        f"footage: {generated}/{len(scenes)} scenes generated - "
+                        f"GPU worker lost ({exc}), remaining scenes use photo motion"
+                    )
+                    break
+                shutil.copyfile(row["result_path"], clip_path)
+                engine_used = "scene_gen"
+
             _upsert_media_asset(
                 conn, project_id, "clip", scene.id, clip_path,
-                {"engine": "scene_gen", "prompt": scene.visual_hint},
+                {"engine": engine_used, "prompt": scene.visual_hint},
             )
             generated += 1
             ctx.report(generated / len(scenes) * 100)
