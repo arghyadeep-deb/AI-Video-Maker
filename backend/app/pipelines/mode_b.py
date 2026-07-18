@@ -186,8 +186,8 @@ async def stage_subtitles(ctx: JobContext) -> None:
         phrases = subtitles.group_into_phrases(all_words)
         subs_dir = project_dir / "subs"
         subs_dir.mkdir(parents=True, exist_ok=True)
-        karaoke = ctx.payload.get("subtitle_style", "phrase") == "karaoke"
-        ass_content = subtitles.write_ass(phrases, project["language"], project["format"], karaoke=karaoke)
+        subtitle_style = ctx.payload.get("subtitle_style", "phrase")
+        ass_content = subtitles.write_ass(phrases, project["language"], project["format"], style_name=subtitle_style)
         srt_content = subtitles.write_srt(phrases)
         (subs_dir / "subtitles.ass").write_text(ass_content, encoding="utf-8")
         (subs_dir / "subtitles.srt").write_text(srt_content, encoding="utf-8")

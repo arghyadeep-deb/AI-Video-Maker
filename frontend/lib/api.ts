@@ -351,7 +351,7 @@ export function cancelJob(jobId: string): Promise<Job> {
   return apiPost<Job>(`/api/jobs/${jobId}/cancel`);
 }
 
-export type SubtitleStyle = "phrase" | "karaoke";
+export type SubtitleStyle = "phrase" | "karaoke" | "wordpop";
 
 export function createRenderJob(
   projectId: string,

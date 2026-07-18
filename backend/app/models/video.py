@@ -18,7 +18,7 @@ class VideoRequest(BaseModel):
     # own voice" rule - this only picks the stock fallback's gender.
     voice: Optional[str] = None
     subtitles: bool = True
-    subtitle_style: Literal["phrase", "karaoke"] = "phrase"
+    subtitle_style: Literal["phrase", "karaoke", "wordpop"] = "phrase"
     # None = "let the server decide at render time": HD by default while
     # the home GPU worker is online (specs/03-design/11-gpu-worker.md:
     # "worker online -> SadTalker HD by default"), off otherwise. An

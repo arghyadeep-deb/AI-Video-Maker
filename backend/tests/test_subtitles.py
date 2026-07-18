@@ -256,3 +256,46 @@ class TestGoldenFiles:
         ass = write_ass(phrases, "en", "16x9")
         expected = (GOLDEN_DIR / "english_example.ass").read_text(encoding="utf-8")
         assert ass == expected
+
+
+class TestWordPop:
+    """Task-23 caption upgrade: 'wordpop' emits one Dialogue PER WORD with
+    a pop-in scale animation, verbatim text, gap-free timing inside each
+    phrase."""
+
+    def test_wordpop_emits_one_dialogue_per_word(self):
+        words = _hindi_words()
+        phrases = group_into_phrases(words)
+        ass = write_ass(phrases, "hi", "9x16", style_name="wordpop")
+        assert ass.count("Dialogue: 0,") == len(words)
+
+    def test_wordpop_has_pop_animation_and_larger_font(self):
+        phrases = group_into_phrases(_english_words())
+        ass = write_ass(phrases, "en", "9x16", style_name="wordpop")
+        assert "\\t(0," in ass and "\\fscx100\\fscy100" in ass
+        # 9x16 base font is 64; wordpop enlarges it (64 * 3.0 = 192) and
+        # anchors it centered at 70% height (1080/2, 1920*0.70).
+        assert "\\fs192\\b1" in ass
+        assert "\\an5\\pos(540,1344)" in ass
+
+    def test_wordpop_keeps_devanagari_text_verbatim(self):
+        words = _hindi_words()
+        phrases = group_into_phrases(words)
+        ass = write_ass(phrases, "hi", "9x16", style_name="wordpop")
+        for w in words:
+            assert w.word in ass
+
+    def test_wordpop_words_hold_until_next_word_no_gaps(self):
+        # Words with silence between them: each event must end exactly when
+        # the next begins (mid-phrase), so no dead frames with no caption.
+        words = [_cue("पहला", 0, 400), _cue("दूसरा", 900, 1300), _cue("तीसरा।", 1500, 2000)]
+        phrases = group_into_phrases(words)
+        ass = write_ass(phrases, "hi", "9x16", style_name="wordpop")
+        # First word's Dialogue must run to 0:00:00.90 (next word's start).
+        assert "0:00:00.00,0:00:00.90" in ass
+
+    def test_karaoke_bool_still_works_as_alias(self):
+        phrases = group_into_phrases(_english_words())
+        assert write_ass(phrases, "en", "16x9", karaoke=True) == write_ass(
+            phrases, "en", "16x9", style_name="karaoke"
+        )

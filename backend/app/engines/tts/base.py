@@ -22,6 +22,14 @@ class SpeechResult:
     timings: list[WordTiming]
 
 
+class PersonalVoiceUnavailableError(Exception):
+    """Base for any personal-voice tier's 'not available right now' error
+    (Chatterbox Space down/quota, OpenVoice conversion failure, ...).
+    Lives here - NOT in the engines' own modules - so tier-chaining code
+    (pipelines/common.py) can catch it without importing torch-heavy
+    engine modules it may not need. Task-23 voice upgrade."""
+
+
 class TTSEngine(ABC):
     @abstractmethod
     async def speak(

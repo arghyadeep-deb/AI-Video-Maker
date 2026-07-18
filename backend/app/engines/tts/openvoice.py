@@ -31,7 +31,10 @@ if str(VENDOR_DIR) not in sys.path:
     sys.path.insert(0, str(VENDOR_DIR))
 
 
-class OpenVoiceUnavailableError(Exception):
+from app.engines.tts.base import PersonalVoiceUnavailableError
+
+
+class OpenVoiceUnavailableError(PersonalVoiceUnavailableError):
     """Conversion failed (missing checkpoint, missing embedding, a bad
     reference sample, etc.) - callers must fall back to the stock voice
     with an explicit notice, per this project's hard invariant, never

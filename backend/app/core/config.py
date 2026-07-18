@@ -40,6 +40,12 @@ class Settings(BaseSettings):
     pixabay_api_key: Optional[str] = None
     hf_token: Optional[str] = None
 
+    # Task-23 voice upgrade: Chatterbox Multilingual expressive voice
+    # cloning via ResembleAI's public Space, tried before OpenVoice in the
+    # personal-voice chain (pipelines/common.py). Off switch exists because
+    # it's a third-party public Space that can change without notice.
+    chatterbox_narration_enabled: bool = True
+
     # Risk R2's wired TEXT fallback chain (specs/06-risks-and-future/01-risks.md):
     # Gemini -> Groq -> OpenRouter, tried in order when Gemini fails for
     # quota or availability. Both are OpenAI-compatible free tiers; model

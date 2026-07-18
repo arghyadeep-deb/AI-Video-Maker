@@ -135,9 +135,9 @@ async def stage_tts(ctx: JobContext) -> None:
             phrases = subtitles.group_into_phrases(words)
             subs_dir = p_dir / "subs"
             subs_dir.mkdir(parents=True, exist_ok=True)
-            karaoke = ctx.payload.get("subtitle_style", "phrase") == "karaoke"
+            subtitle_style = ctx.payload.get("subtitle_style", "phrase")
             (subs_dir / "subtitles.ass").write_text(
-                subtitles.write_ass(phrases, project["language"], project["format"], karaoke=karaoke),
+                subtitles.write_ass(phrases, project["language"], project["format"], style_name=subtitle_style),
                 encoding="utf-8",
             )
             (subs_dir / "subtitles.srt").write_text(subtitles.write_srt(phrases), encoding="utf-8")

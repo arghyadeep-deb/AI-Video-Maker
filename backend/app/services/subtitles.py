@@ -202,18 +202,71 @@ def _dialogue_text(phrase: Phrase, karaoke: bool) -> str:
     return "".join(parts).strip()
 
 
+# Word-pop (task-23 caption upgrade): one word on screen at a time, popping
+# in with a quick scale animation - the dominant reels/shorts caption style.
+# Implemented with plain \t scale transforms (libass-supported since
+# forever), one Dialogue event per word: each word holds until the NEXT
+# word starts (no dead gaps mid-phrase), font enlarged relative to the
+# style's base size. Script text stays verbatim - styling only, never
+# rewriting words (hard invariant: text goes through untouched).
+WORDPOP_SCALE_START = 55  # percent, pop-in origin
+WORDPOP_POP_MS = 110
+# Word-pop shows ONE word - it can and should be much bigger than the
+# 2-line phrase style (verified with a real burn + frame inspection:
+# 1.45x and 2.2x both read as ordinary subtitles on a real burned
+# frame, not the reels caption look; 3.0x + bold finally does).
+WORDPOP_FONT_FACTOR = 3.0
+# Vertical anchor: centered at ~70% of frame height - the standard reels
+# caption zone (clear of both the bottom UI overlays and the subject's
+# face), instead of the phrase style's bottom margin.
+WORDPOP_Y_FRACTION = 0.70
+
+
+def _wordpop_events(phrases: list[Phrase], style: dict) -> str:
+    font_size = round(style["font_size"] * WORDPOP_FONT_FACTOR)
+    pos_x = style["play_res_x"] // 2
+    pos_y = round(style["play_res_y"] * WORDPOP_Y_FRACTION)
+    tags = (
+        f"{{\\an5\\pos({pos_x},{pos_y})\\fs{font_size}\\b1"
+        f"\\fscx{WORDPOP_SCALE_START}\\fscy{WORDPOP_SCALE_START}"
+        f"\\t(0,{WORDPOP_POP_MS},\\fscx100\\fscy100)}}"
+    )
+    lines = []
+    for phrase in phrases:
+        words = list(phrase.words)
+        for i, w in enumerate(words):
+            end_ms = words[i + 1].start_ms if i + 1 < len(words) else phrase.end_ms
+            end_ms = max(end_ms, w.start_ms + 1)  # never zero-length
+            lines.append(
+                f"Dialogue: 0,{_ass_timestamp(w.start_ms)},{_ass_timestamp(end_ms)},"
+                f"Default,,0,0,0,,{tags}{_ass_escape(w.word)}"
+            )
+    return "\n".join(lines)
+
+
 def write_ass(
-    phrases: list[Phrase], language: str, video_format: str, karaoke: bool = False
+    phrases: list[Phrase],
+    language: str,
+    video_format: str,
+    karaoke: bool = False,
+    style_name: str = "phrase",
 ) -> str:
-    """karaoke=True emits per-word `\\k` timing tags (open decision #3:
-    off by default; phrase-at-a-time is the shipped default)."""
+    """`style_name`: "phrase" (default, whole phrase at once), "karaoke"
+    (per-word `\\k` fill), or "wordpop" (one word at a time with a pop-in
+    scale animation - task-23's modern-captions upgrade). `karaoke=True`
+    is kept as a back-compat alias for style_name="karaoke"."""
     style = FORMAT_STYLE[video_format]
     font = FONT_BY_LANGUAGE[language]
+    if karaoke and style_name == "phrase":
+        style_name = "karaoke"
 
-    events = "\n".join(
-        f"Dialogue: 0,{_ass_timestamp(p.start_ms)},{_ass_timestamp(p.end_ms)},Default,,0,0,0,,{_dialogue_text(p, karaoke)}"
-        for p in phrases
-    )
+    if style_name == "wordpop":
+        events = _wordpop_events(phrases, style)
+    else:
+        events = "\n".join(
+            f"Dialogue: 0,{_ass_timestamp(p.start_ms)},{_ass_timestamp(p.end_ms)},Default,,0,0,0,,{_dialogue_text(p, style_name == 'karaoke')}"
+            for p in phrases
+        )
 
     out = TEMPLATE_PATH.read_text(encoding="utf-8")
     tokens = {

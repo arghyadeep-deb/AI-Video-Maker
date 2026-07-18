@@ -375,7 +375,7 @@ export default function GeneratePage({ params }: { params: Promise<{ id: string 
       <div style={{ marginTop: "2rem" }}>
         <h3 style={{ fontSize: "0.95rem", fontWeight: 600, marginBottom: "0.5rem" }}>Subtitles</h3>
         <div style={{ display: "flex", gap: "0.5rem" }}>
-          {(["phrase", "karaoke"] as const).map((style) => (
+          {(["phrase", "karaoke", "wordpop"] as const).map((style) => (
             <button
               key={style}
               type="button"
@@ -390,7 +390,11 @@ export default function GeneratePage({ params }: { params: Promise<{ id: string 
                 fontWeight: subtitleStyle === style ? 600 : 400,
               }}
             >
-              {style === "phrase" ? "Phrase (one line at a time)" : "Karaoke (word-by-word highlight)"}
+              {style === "phrase"
+                ? "Phrase (one line at a time)"
+                : style === "karaoke"
+                  ? "Karaoke (word-by-word highlight)"
+                  : "Word pop (one big word at a time)"}
             </button>
           ))}
         </div>
