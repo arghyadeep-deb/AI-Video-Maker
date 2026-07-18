@@ -80,11 +80,31 @@ def fit_dims(width: int, height: int) -> tuple[int, int]:
 class LTXPublicSpaceEngine:
     def __init__(
         self,
+        hf_token: Optional[str] = None,
         timeout_s: float = DEFAULT_TIMEOUT_S,
         client_factory: Optional[Callable[[], Client]] = None,
     ):
+        # hf_token raises this Space call's own ZeroGPU quota tier (same
+        # anonymous-vs-authenticated split as flux.py) - found live testing
+        # this upgrade: LTX-2.3 requests ~150s of ZeroGPU time per call
+        # (far more than the old, lighter Space), which exhausts the tiny
+        # anonymous bucket in a single call. This constructor previously
+        # took no token at all - always calling anonymously - which was
+        # survivable for the old model but makes this heavier one nearly
+        # unusable without authentication.
         self._timeout_s = timeout_s
-        self._client_factory = client_factory or (lambda: Client(PUBLIC_SPACE_ID))
+        # gradio_client's own httpx client has a short default read-timeout
+        # (~21s, verified live) totally independent of the asyncio.wait_for
+        # timeout below - LTX-2.3 is genuinely heavier than the old Space
+        # and routinely takes 60-80s per call, so without this override
+        # EVERY call died with "The read operation timed out" long before
+        # our own timeout_s ever got a chance to apply (found live testing
+        # this upgrade: 100% failure, silently falling back to Ken Burns
+        # every time). Must exceed timeout_s or this client-side timeout
+        # would just fire first again.
+        self._client_factory = client_factory or (
+            lambda: Client(PUBLIC_SPACE_ID, token=hf_token, httpx_kwargs={"timeout": timeout_s + 15})
+        )
         self._client: Optional[Client] = None
 
     def _get_client(self) -> Client:

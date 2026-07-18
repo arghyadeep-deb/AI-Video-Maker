@@ -266,7 +266,7 @@ async def stage_footage(ctx: JobContext) -> None:
 
         note = None
         generated = 0
-        public_ltx = LTXPublicSpaceEngine()
+        public_ltx = LTXPublicSpaceEngine(hf_token=settings.hf_token)
         for i, scene in enumerate(scenes):
             if ctx.cancelled():
                 return
@@ -583,4 +583,8 @@ MODE_B_PIPELINE = [
     ("images", stage_images),
     ("footage", stage_footage),
     ("subtitles", stage_subtitles),
-    ("
+    ("assemble", stage_assemble),
+    ("finalize", stage_finalize),
+]
+
+register_pipeline("render_mode_b", MODE_B_PIPELINE)
