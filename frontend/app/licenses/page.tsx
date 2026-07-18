@@ -113,10 +113,12 @@ export default function LicensesPage() {
 
       <Section title="Generated footage">
         <p>
-          <strong>LTX-Video</strong> (Lightricks&apos; own custom Open Weights License, not
-          Apache/MIT/OpenRAIL) animates a scene&apos;s image into a short motion clip, called via
-          its creator&apos;s own public Hugging Face Space (same pattern as FLUX above) rather than
-          a self-hosted copy. Scenes it can&apos;t reach fall
+          <strong>LTX-2.3</strong> (Lightricks&apos; own community license — free for use below
+          US$10M annual revenue, not Apache/MIT/OpenRAIL; this project is non-commercial) animates
+          a scene&apos;s image into a short motion clip, called via its creator&apos;s own public
+          Hugging Face Space (same pattern as FLUX above) rather than a self-hosted copy. The
+          model also generates an audio track, which this site discards — narration and music are
+          always produced by the voice and music pipeline, never by the video model. Scenes it can&apos;t reach fall
           back to the home GPU worker, then to a Ken Burns pan/zoom of the still image — each tier
           is recorded per scene in <code>credits.txt</code>.
         </p>

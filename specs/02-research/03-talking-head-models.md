@@ -36,3 +36,15 @@ Mode A needs: single still portrait + audio → video of the portrait speaking, 
 - Wrap as `TalkingHeadEngine` interface: `render(portrait, wav) → mp4`. Backends: `sadtalker-local`, `wav2lip-local`, `colab-manual`.
 - SadTalker wants: front-facing portrait, WAV 16 kHz audio, `--still` flag for less head wobble at higher stability.
 - Pin exact commits of both repos; they are research code and move without semver.
+
+## Addendum (2026-07-18) — avatar modernization candidates (task-23 quality initiative)
+
+The shipped engines (Wav2Lip CPU default, SadTalker HD) are 2023-generation and are now the biggest remaining "AI tell" in Mode A: blurry mouth region, stiff/uncanny head motion. Owner has prioritized closing this gap. Refreshed July-2026 landscape:
+
+- **MuseTalk — promoted from "enhance lips pass" to primary upgrade candidate.** Already in this project's plan (license audited at task-21; task-22 notes it needs its own pinned venv, never installed). 2026 comparisons rank it among the highest-quality open lip-sync models, near-photorealistic, and it is efficient enough for the home worker. Cheapest path: it upgrades the *existing* Wav2Lip output style directly (same single-portrait input) without new architecture.
+- **LatentSync (ByteDance, open)** — latent-space lip-sync, sharper than pixel-space Wav2Lip-era models; second candidate, needs license + VRAM check on the 12GB laptop 5070 Ti.
+- **Hallo3** — best-in-class temporal consistency for long clips (minutes without identity drift); likely too heavy for our hardware, note only.
+- **EchoMimic — rejected**: published comparisons report poor lip-sync accuracy + reference-image warping.
+- **LongCat-Video Avatar 1.5** — judgment gate #1 remains open (was blocked on real GPU time); fold its evaluation into the same session as the MuseTalk venv install so one owner ear/eye-test settles the whole avatar tier.
+
+**Plan of record**: build the MuseTalk venv on the home worker first (already-specced work, no new decisions), eye-test vs Wav2Lip/SadTalker; evaluate LatentSync + LongCat in the same sitting if time allows. Route through the existing `TalkingHeadEngine` interface — no pipeline changes.

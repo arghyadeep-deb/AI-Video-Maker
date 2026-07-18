@@ -9,9 +9,9 @@
 | Script LLM + improvements | **Gemini Flash** (latest free-tier Flash model) | Free tier ~1,500 req/day, no card | Groq (Llama 3.3 70B free tier); OpenRouter free models |
 | Avatar styling (selfie → persona portrait) | **Gemini 2.5 Flash Image** ("nano banana") | Free tier ~500 images/day | Local Stable Diffusion + InstantID (needs GPU) |
 | TTS base (hi/en) + word timings | **edge-tts** (Python, unofficial MS Edge voices) | Unmetered, no key | Supertonic (local ONNX, CPU, MIT) — see [`02-research/07`](../02-research/07-voice-engine-alternatives.md) |
-| **Personal voice (every render)** | **OpenVoice V2** tone conversion (MIT) | VM CPU, ~3–5× real-time | Stock voices with explicit notice |
+| **Personal voice (every render)** | **IndicF5 voice-cloning TTS** (AI4Bharat, 330M, Hinglish-native; adoption gated on the task-23 owner ear-test — until it passes, **OpenVoice V2** conversion (MIT) remains the live default) | Public HF Space via `gradio_client`, or home GPU worker (330M fits easily); OpenVoice: VM CPU, ~3–5× real-time | edge-tts→OpenVoice V2 conversion; then stock voices with explicit notice |
 | HD voice / designed personas | **VoxCPM** on ZeroGPU (Apache-2.0) | GPU-slot budget | Standard converted voice |
-| Subtitle timing | **edge-tts WordBoundary events** | Comes free with TTS | faster-whisper alignment (local, OSS) |
+| Subtitle timing | **edge-tts WordBoundary events** | Comes free with TTS | faster-whisper forced alignment against known script text (local, OSS) — **required, not optional, for generative voices (IndicF5/VoxCPM/Supertonic)** |
 | Talking head | **Wav2Lip** (VM CPU, default) + **SadTalker** (ZeroGPU slots) | OSS + free GPU minutes | Admin Colab escape hatch |
 | Background music | Bundled free-library tracks + FFmpeg ducking | Pixabay Music / YT Audio Library | Music off |
 | Stock images | **Pexels API** | Free key, 200 req/hr | Pixabay API; then nano banana generation |

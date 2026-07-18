@@ -235,8 +235,10 @@ def delete_scene_clip(conn, project_id: str, scene_id: int) -> None:
 async def stage_footage(ctx: JobContext) -> None:
     """Generated-footage level (task-20a, revised task-23): one AI motion
     clip per scene. Two tiers, tried in order per scene: Lightricks' public
-    LTX-Video ZeroGPU Space (fast and reliable - spike-tested at 16.6s live,
-    see task-23-quality-and-ops.md - used as an interim stand-in for our own
+    LTX-2.3 ZeroGPU Space (upgraded 2026-07-18 from the older
+    ltx-video-distilled Space - native vertical training, real motion+detail
+    jump; the predecessor was spike-tested at 16.6s live, see
+    task-23-quality-and-ops.md - used as an interim stand-in for our own
     hf-space-scene-gen/ until that can be hosted, 2026-08-16 or a
     community-grant approval), then the home GPU worker's scene_gen engine.
     Either tier failing for a scene is a normal event, not an error:
@@ -581,8 +583,4 @@ MODE_B_PIPELINE = [
     ("images", stage_images),
     ("footage", stage_footage),
     ("subtitles", stage_subtitles),
-    ("assemble", stage_assemble),
-    ("finalize", stage_finalize),
-]
-
-register_pipeline("render_mode_b", MODE_B_PIPELINE)
+    ("
